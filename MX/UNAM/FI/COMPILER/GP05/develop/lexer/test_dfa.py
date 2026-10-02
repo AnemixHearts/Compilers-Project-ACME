@@ -6,7 +6,7 @@ def probar_literal_correcto():
 
     lexema, puntero, cerrado = estado_leyendo_literal(codigo, 0)
 
-    print("=== Prueba 1: Literal correcto ===")
+    print("- Prueba 1: Literal correcto -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Puntero:", puntero)
@@ -23,7 +23,7 @@ def probar_literal_sin_cierre():
 
     lexema, puntero, cerrado = estado_leyendo_literal(codigo, 0)
 
-    print("\n=== Prueba 2: Literal sin cierre ===")
+    print("\n- Prueba 2: Literal sin cierre -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Puntero:", puntero)
