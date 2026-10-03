@@ -113,7 +113,7 @@ variable
 
     tipos_obtenidos = [token.tipo for token in tokens]
 
-    print("=== Prueba: 40 tokens ===")
+    print(" - Prueba: 40 tokens -")
     print()
     print(f"Tokens encontrados: {len(tokens)}")
     print(f"Tokens esperados:   {len(tipos_esperados)}")
@@ -180,7 +180,7 @@ variable
 
     tipos_obtenidos = [token.tipo for token in tokens]
 
-    print("\n=== Prueba: Categorías principales ===")
+    print("\n- Prueba: Categorías principales -")
 
     for token in tokens:
         print(

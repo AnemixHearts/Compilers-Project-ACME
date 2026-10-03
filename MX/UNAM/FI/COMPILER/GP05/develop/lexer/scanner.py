@@ -7,6 +7,7 @@ from dfa import (
 )
 
 from models.token import Token
+from symbol_table.symtab import SymbolTable
 
 
 class Scanner:
@@ -21,34 +22,6 @@ class Scanner:
     se ignoran y no generan tokens.
     """
 
-    # Palabras reservadas y operadores lógicos.
-    PALABRAS_RESERVADAS = {
-        "Start": "START",
-        "if": "IF",
-        "then": "THEN",
-        "else": "ELSE",
-        "while": "WHILE",
-        "for": "FOR",
-        "from": "FROM",
-        "to": "TO",
-        "print": "PRINT",
-        "printf": "PRINTF",
-        "read": "READ",
-        "int": "INT",
-        "real": "REAL",
-        "string": "STRING_TYPE",
-        "bool": "BOOL_TYPE",
-        "and": "AND",
-        "or": "OR",
-        "not": "NOT",
-    }
-
-    # Literales booleanos.
-    LITERALES_BOOLEANOS = {
-        "True",
-        "False",
-    }
-
     def __init__(self, fuente):
         """
         Inicializa el scanner.
@@ -58,16 +31,21 @@ class Scanner:
         """
 
         self.fuente = fuente
+
+        # Puntero de lectura.
         self.puntero = 0
 
         # Posición actual dentro del código fuente.
         self.linea = 1
         self.columna = 1
 
-        # Tokens reconocidos.
+        # Lista de tokens reconocidos.
         self.tokens = []
 
-        # Errores léxicos encontrados.
+        # Tabla de símbolos.
+        self.symbol_table = SymbolTable()
+
+        # Lista de errores léxicos.
         self.errores = []
 
     def escanear(self):
@@ -79,33 +57,45 @@ class Scanner:
                 Lista de tokens reconocidos.
         """
 
+        # q0: estado inicial.
         while self.puntero < len(self.fuente):
 
             char = self.fuente[self.puntero]
 
-            # q0: espacios y saltos de línea.
+            # q0 -> espacio, tab o salto de línea
             if char.isspace():
                 self._avanzar_caracter(char)
                 continue
 
-            # q0 -> q11: comentario.
+            # q0 -> q11
+            # Inicio de comentario.
             if char == "#":
                 self._ignorar_comentario()
                 continue
 
-            # q0 -> q1: identificador o palabra reservada.
+            # q0 -> q1
+            # Identificador / palabra reservada / booleano.
             if char.isalpha() or char == "_":
+
                 linea_inicial = self.linea
                 columna_inicial = self.columna
 
-                lexema, nuevo_puntero = estado_leyendo_identificador(
+                (
+                    lexema,
+                    nuevo_puntero
+                ) = estado_leyendo_identificador(
                     self.fuente,
                     self.puntero
                 )
 
+                # El DFA ya avanzó el puntero.
                 self.puntero = nuevo_puntero
 
-                tipo = self._clasificar_identificador(lexema)
+                # Determinar el tipo mediante la tabla de símbolos.
+                tipo = self._clasificar_identificador(
+                    lexema,
+                    linea_inicial
+                )
 
                 self.tokens.append(
                     Token(
@@ -116,11 +106,15 @@ class Scanner:
                     )
                 )
 
+                # Actualizar línea y columna.
                 self._actualizar_posicion(lexema)
+
                 continue
 
-            # q0 -> q2: número.
+            # q0 -> q2
+            # Número entero o real.
             if char.isdigit():
+
                 linea_inicial = self.linea
                 columna_inicial = self.columna
 
@@ -137,6 +131,7 @@ class Scanner:
                 self.puntero = nuevo_puntero
 
                 if valido:
+
                     self.tokens.append(
                         Token(
                             tipo=tipo,
@@ -145,7 +140,9 @@ class Scanner:
                             columna=columna_inicial
                         )
                     )
+
                 else:
+
                     self._registrar_error(
                         f"Número mal formado: '{lexema}'",
                         linea_inicial,
@@ -153,10 +150,13 @@ class Scanner:
                     )
 
                 self._actualizar_posicion(lexema)
+
                 continue
 
-            # q0 -> q5: literal de cadena.
+            # q0 -> q5
+            # Literal de cadena.
             if char == '"':
+
                 linea_inicial = self.linea
                 columna_inicial = self.columna
 
@@ -172,6 +172,7 @@ class Scanner:
                 self.puntero = nuevo_puntero
 
                 if cerrado:
+
                     self.tokens.append(
                         Token(
                             tipo="STRING_LITERAL",
@@ -180,7 +181,9 @@ class Scanner:
                             columna=columna_inicial
                         )
                     )
+
                 else:
+
                     self._registrar_error(
                         f"Literal de cadena sin cerrar: '{lexema}'",
                         linea_inicial,
@@ -188,10 +191,13 @@ class Scanner:
                     )
 
                 self._actualizar_posicion(lexema)
+
                 continue
 
+            # q0 -> q7/q8/q9/q10
             # Operadores.
             if char in "+-*/=!<>":
+
                 linea_inicial = self.linea
                 columna_inicial = self.columna
 
@@ -208,6 +214,7 @@ class Scanner:
                 self.puntero = nuevo_puntero
 
                 if valido:
+
                     self.tokens.append(
                         Token(
                             tipo=tipo,
@@ -216,7 +223,9 @@ class Scanner:
                             columna=columna_inicial
                         )
                     )
+
                 else:
+
                     self._registrar_error(
                         f"Operador inválido: '{lexema}'",
                         linea_inicial,
@@ -224,10 +233,13 @@ class Scanner:
                     )
 
                 self._actualizar_posicion(lexema)
+
                 continue
 
+            # q0 -> q12
             # Puntuación.
             if char in "(){};,":
+
                 linea_inicial = self.linea
                 columna_inicial = self.columna
 
@@ -244,6 +256,7 @@ class Scanner:
                 self.puntero = nuevo_puntero
 
                 if valido:
+
                     self.tokens.append(
                         Token(
                             tipo=tipo,
@@ -252,7 +265,9 @@ class Scanner:
                             columna=columna_inicial
                         )
                     )
+
                 else:
+
                     self._registrar_error(
                         f"Puntuación inválida: '{lexema}'",
                         linea_inicial,
@@ -260,9 +275,11 @@ class Scanner:
                     )
 
                 self._actualizar_posicion(lexema)
+
                 continue
 
-            # Carácter no reconocido.
+            # Carácter ilegal.
+            # Panic Mode Recovery.
             linea_inicial = self.linea
             columna_inicial = self.columna
 
@@ -272,35 +289,49 @@ class Scanner:
                 columna_inicial
             )
 
+            # Descartar carácter inválido y continuar.
             self._avanzar_caracter(char)
 
         return self.tokens
 
-    def _clasificar_identificador(self, lexema):
+    def _clasificar_identificador(self, lexema, linea):
         """
-        Determina si un lexema corresponde a una palabra reservada,
-        literal booleano o identificador.
+        Clasifica un lexema alfanumérico mediante la tabla de símbolos.
 
-        Args:
-            lexema (str): Lexema leído.
+        Orden de clasificación:
 
-        Returns:
-            str: Tipo de token.
+            1. Literal booleano.
+            2. Palabra reservada.
+            3. Identificador.
+
+        Los identificadores se insertan en la tabla de símbolos.
         """
 
-        if lexema in self.LITERALES_BOOLEANOS:
+        # 1. Literal booleano.
+        if self.symbol_table.is_boolean_literal(lexema):
             return "BOOL_LITERAL"
 
-        if lexema in self.PALABRAS_RESERVADAS:
-            return self.PALABRAS_RESERVADAS[lexema]
+        # 2. Palabra reservada.
+        tipo_keyword = self.symbol_table.lookup_keyword(lexema)
+
+        if tipo_keyword is not None:
+            return tipo_keyword
+
+        # 3. Identificador.
+        self.symbol_table.insert(
+            lexema,
+            line=linea
+        )
 
         return "ID"
 
     def _ignorar_comentario(self):
         """
-        Implementa q11.
+        Implementa el estado q11.
 
-        Consume caracteres desde '#' hasta antes del salto de línea.
+        Consume el contenido del comentario desde '#'
+        hasta antes del salto de línea.
+
         El comentario no genera ningún token.
         """
 
@@ -308,6 +339,8 @@ class Scanner:
 
             char = self.fuente[self.puntero]
 
+            # Dejamos el salto de línea para que q0
+            # lo procese y actualice correctamente la línea.
             if char == "\n":
                 break
 
@@ -315,10 +348,10 @@ class Scanner:
 
     def _avanzar_caracter(self, char):
         """
-        Avanza un carácter y actualiza línea y columna.
+        Consume un carácter y actualiza línea y columna.
 
         Args:
-            char (str): Carácter que será consumido.
+            char (str): Carácter consumido.
         """
 
         self.puntero += 1
@@ -331,9 +364,7 @@ class Scanner:
 
     def _actualizar_posicion(self, lexema):
         """
-        Actualiza la posición después de consumir un lexema.
-
-        Se utiliza cuando una función del DFA ya avanzó el puntero.
+        Actualiza línea y columna después de consumir un lexema.
 
         Args:
             lexema (str): Lexema consumido.
@@ -353,8 +384,8 @@ class Scanner:
 
         Args:
             mensaje (str): Descripción del error.
-            linea (int): Línea del error.
-            columna (int): Columna del error.
+            linea (int): Línea donde ocurrió.
+            columna (int): Columna donde ocurrió.
         """
 
         error = {

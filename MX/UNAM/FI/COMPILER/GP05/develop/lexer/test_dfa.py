@@ -14,7 +14,7 @@ def probar_identificador():
 
     lexema, puntero = estado_leyendo_identificador(codigo, 0)
 
-    print("=== Prueba 1: Identificador ===")
+    print("- Prueba 1: Identificador -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Puntero:", puntero)
@@ -30,7 +30,7 @@ def probar_entero():
 
     lexema, puntero, tipo, valido = estado_leyendo_numero(codigo, 0)
 
-    print("\n=== Prueba 2: Entero ===")
+    print("\n- Prueba 2: Entero -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Tipo:", tipo)
@@ -49,7 +49,7 @@ def probar_real():
 
     lexema, puntero, tipo, valido = estado_leyendo_numero(codigo, 0)
 
-    print("\n=== Prueba 3: Real ===")
+    print("\n- Prueba 3: Real -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Tipo:", tipo)
@@ -68,7 +68,7 @@ def probar_real_invalido():
 
     lexema, puntero, tipo, valido = estado_leyendo_numero(codigo, 0)
 
-    print("\n=== Prueba 4: Real inválido ===")
+    print("\n- Prueba 4: Real inválido -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Tipo:", tipo)
@@ -86,7 +86,7 @@ def probar_literal_correcto():
 
     lexema, puntero, cerrado = estado_leyendo_literal(codigo, 0)
 
-    print("\n=== Prueba 5: Literal correcto ===")
+    print("\n- Prueba 5: Literal correcto -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Puntero:", puntero)
@@ -104,7 +104,7 @@ def probar_literal_sin_cierre():
 
     lexema, puntero, cerrado = estado_leyendo_literal(codigo, 0)
 
-    print("\n=== Prueba 6: Literal sin cierre ===")
+    print("\n- Prueba 6: Literal sin cierre -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Puntero:", puntero)
@@ -130,7 +130,7 @@ def probar_operadores():
         (">=", "GEQ"),
     ]
 
-    print("\n=== Prueba 7: Operadores ===")
+    print("\n- Prueba 7: Operadores -")
 
     for codigo, tipo_esperado in casos:
         lexema, puntero, tipo, valido = estado_leyendo_operador(
@@ -159,7 +159,7 @@ def probar_exclamacion_invalida():
         0
     )
 
-    print("\n=== Prueba 8: Operador inválido ===")
+    print("\n- Prueba 8: Operador inválido -")
     print("Código:", codigo)
     print("Lexema:", lexema)
     print("Tipo:", tipo)
@@ -182,7 +182,7 @@ def probar_puntuacion():
         (",", "COMMA"),
     ]
 
-    print("\n=== Prueba 9: Puntuación ===")
+    print("\n- Prueba 9: Puntuación -")
 
     for codigo, tipo_esperado in casos:
         lexema, puntero, tipo, valido = estado_leyendo_puntuacion(
@@ -211,7 +211,7 @@ def probar_token():
         columna=1
     )
 
-    print("\n=== Prueba 10: Token ===")
+    print("\n- Prueba 10: Token -")
     print("Tipo:", token.tipo)
     print("Lexema:", token.lexema)
     print("Línea:", token.linea)
@@ -231,7 +231,7 @@ def probar_token_inmutable():
         columna=5
     )
 
-    print("\n=== Prueba 11: Token inmutable ===")
+    print("\n- Prueba 11: Token inmutable -")
 
     try:
         token.tipo = "INT"

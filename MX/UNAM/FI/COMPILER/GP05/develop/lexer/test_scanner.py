@@ -7,7 +7,7 @@ def probar_ejemplo_pdf():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("=== Prueba 1: Ejemplo del PDF ===")
+    print("- Prueba 1: Ejemplo del PDF -")
     print("Código:")
     print(codigo)
     print("\nTokens:")
@@ -50,7 +50,7 @@ def probar_palabras_reservadas():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 2: Palabras reservadas ===")
+    print("\n- Prueba 2: Palabras reservadas -")
 
     for token in tokens:
         print(f"{token.lexema:10} -> {token.tipo}")
@@ -90,7 +90,7 @@ def probar_identificadores():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 3: Identificadores ===")
+    print("\n- Prueba 3: Identificadores -")
 
     for token in tokens:
         print(f"{token.lexema:10} -> {token.tipo}")
@@ -114,7 +114,7 @@ def probar_numeros():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 4: Números ===")
+    print("\n- Prueba 4: Números -")
 
     for token in tokens:
         print(f"{token.lexema:10} -> {token.tipo}")
@@ -138,7 +138,7 @@ def probar_operadores():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 5: Operadores ===")
+    print("\n- Prueba 5: Operadores -")
 
     for token in tokens:
         print(f"{token.lexema:3} -> {token.tipo}")
@@ -169,7 +169,7 @@ def probar_puntuacion():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 6: Puntuación ===")
+    print("\n- Prueba 6: Puntuación -")
 
     for token in tokens:
         print(f"{token.lexema} -> {token.tipo}")
@@ -198,7 +198,7 @@ print(a);
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 7: Comentarios y espacios ===")
+    print("\n- Prueba 7: Comentarios y espacios -")
 
     for token in tokens:
         print(f"{token.lexema:10} -> {token.tipo}")
@@ -228,7 +228,7 @@ def probar_error_lexico():
     scanner = Scanner(codigo)
     tokens = scanner.escanear()
 
-    print("\n=== Prueba 8: Errores léxicos ===")
+    print("\n- Prueba 8: Errores léxicos -")
 
     for error in scanner.errores:
         print(
@@ -250,6 +250,68 @@ def probar_error_lexico():
     assert tipos_obtenidos == tipos_esperados
     assert len(scanner.errores) == 3
 
+def probar_tabla_de_simbolos():
+    """
+    Verifica la integración entre Scanner y SymbolTable.
+
+    Los identificadores deben insertarse en la tabla,
+    mientras que las palabras reservadas no deben hacerlo.
+    """
+
+    codigo = """
+int a = 10;
+int contador = a;
+print(contador);
+"""
+
+    scanner = Scanner(codigo)
+    tokens = scanner.escanear()
+
+    print("\n- Prueba 9: Integración con tabla de símbolos -")
+
+    print("\nTokens:")
+
+    for token in tokens:
+        print(
+            f"{token.tipo:15} "
+            f"{token.lexema!r:12} "
+            f"línea={token.linea} "
+            f"columna={token.columna}"
+        )
+
+    print("\nTabla de símbolos:")
+
+    for simbolo in scanner.symbol_table.all_symbols():
+        print(
+            f"{simbolo.name:12} "
+            f"línea={simbolo.declaration_line}"
+        )
+
+    # Solo los identificadores deben estar registrados.
+    nombres_esperados = [
+        "a",
+        "contador",
+    ]
+
+    nombres_obtenidos = [
+        simbolo.name
+        for simbolo in scanner.symbol_table.all_symbols()
+    ]
+
+    assert nombres_obtenidos == nombres_esperados
+
+    # Las palabras reservadas no deben registrarse como IDs.
+    assert scanner.symbol_table.lookup("int") is None
+    assert scanner.symbol_table.lookup("print") is None
+
+    # Los identificadores sí deben existir.
+    assert scanner.symbol_table.lookup("a") is not None
+    assert scanner.symbol_table.lookup("contador") is not None
+
+    # No debe haber errores.
+    assert scanner.errores == []
+
+    print("Tabla de símbolos integrada correctamente.")
 
 if __name__ == "__main__":
     probar_ejemplo_pdf()
@@ -260,5 +322,6 @@ if __name__ == "__main__":
     probar_puntuacion()
     probar_comentarios_y_espacios()
     probar_error_lexico()
+    probar_tabla_de_simbolos()
 
     print("\nTodas las pruebas del Scanner fueron exitosas.")
