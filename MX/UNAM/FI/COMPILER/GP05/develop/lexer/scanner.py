@@ -382,21 +382,19 @@ class Scanner:
         """
         Registra un error léxico.
 
+        El Scanner solamente almacena el error.
+        La presentación del error corresponde a Writer.
+
         Args:
-            mensaje (str): Descripción del error.
-            linea (int): Línea donde ocurrió.
-            columna (int): Columna donde ocurrió.
+        mensaje (str): Descripción del error.
+        linea (int): Línea donde ocurrió.
+        columna (int): Columna donde ocurrió.
         """
 
         error = {
-            "mensaje": mensaje,
-            "linea": linea,
-            "columna": columna,
+        "mensaje": mensaje,
+        "linea": linea,
+        "columna": columna,
         }
 
         self.errores.append(error)
-
-        print(
-            f"Error léxico en línea {linea}, "
-            f"columna {columna}: {mensaje}"
-        )
