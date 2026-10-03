@@ -1,4 +1,4 @@
-from reader import Reader
+from ..io.reader import Reader
 
 
 def probar_lectura_string():

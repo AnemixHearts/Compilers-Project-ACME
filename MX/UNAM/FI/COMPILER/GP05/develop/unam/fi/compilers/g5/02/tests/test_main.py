@@ -6,7 +6,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from main import (
+from ..main import (
     construir_parser,
     ejecutar_desde_archivo,
     ejecutar_desde_string,

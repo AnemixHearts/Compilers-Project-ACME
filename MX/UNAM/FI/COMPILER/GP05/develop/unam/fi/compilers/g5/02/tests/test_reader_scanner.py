@@ -1,5 +1,5 @@
-from reader import Reader
-from scanner import Scanner
+from ..io.reader import Reader
+from ..lexer.scanner import Scanner
 
 
 def probar_string_a_scanner():

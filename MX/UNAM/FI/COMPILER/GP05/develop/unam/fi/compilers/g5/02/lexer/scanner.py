@@ -1,4 +1,4 @@
-from dfa import (
+from .dfa import (
     estado_leyendo_identificador,
     estado_leyendo_numero,
     estado_leyendo_literal,
@@ -6,8 +6,8 @@ from dfa import (
     estado_leyendo_puntuacion,
 )
 
-from models.token import Token
-from symbol_table.symtab import SymbolTable
+from ..models.token import Token
+from ..symbol_table.symtab import SymbolTable
 
 
 class Scanner:

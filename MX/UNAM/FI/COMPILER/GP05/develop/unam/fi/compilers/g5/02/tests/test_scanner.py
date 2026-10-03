@@ -1,4 +1,4 @@
-from scanner import Scanner
+from ..lexer.scanner import Scanner
 
 
 def probar_ejemplo_pdf():

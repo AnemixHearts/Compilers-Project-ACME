@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from reader import Reader
-from scanner import Scanner
-from writer import Writer
+from ..io.reader import Reader
+from ..lexer.scanner import Scanner
+from ..io.writer import Writer
 
 
 def probar_pipeline_string():

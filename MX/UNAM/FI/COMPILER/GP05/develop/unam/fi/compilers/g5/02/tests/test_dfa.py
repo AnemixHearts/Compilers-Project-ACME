@@ -1,4 +1,4 @@
-from dfa import (
+from ..lexer.dfa import (
     estado_leyendo_identificador,
     estado_leyendo_numero,
     estado_leyendo_literal,
@@ -6,7 +6,7 @@ from dfa import (
     estado_leyendo_puntuacion,
 )
 
-from models.token import Token
+from ..models.token import Token
 
 
 def probar_identificador():

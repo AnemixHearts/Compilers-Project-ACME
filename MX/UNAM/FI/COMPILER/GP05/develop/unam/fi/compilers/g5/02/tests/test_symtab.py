@@ -1,4 +1,4 @@
-from symbol_table.symtab import SymbolTable
+from ..symbol_table.symtab import SymbolTable
 
 
 def probar_lookup_vacio():
