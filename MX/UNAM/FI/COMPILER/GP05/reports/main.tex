@@ -31,5 +31,56 @@ The compilation process is fundamentally divided into several phases, with lexic
 
 Unlike automated solutions that rely on tools like FLEX or standard regular expression libraries, this lexer is built entirely from scratch using deterministic finite automaton (DFA) state functions. It is capable of recognizing 40 distinct token types (including keywords, identifiers, operators, constants, and punctuators) while distinguishing case sensitivity. Furthermore, the lexer implements a robust ``Panic Mode'' error recovery strategy, allowing it to detect and report multiple lexical errors—such as malformed numbers or unclosed string literals—without halting execution. Ultimately, the lexer produces a clean stream of tokens that forms the foundation for subsequent syntax analysis.\\
 
+\section*{Architecture and Project Structure}
+The architectural design of the lexer follows a modular, layered approach, ensuring separation of concerns and maintainability. The package, structured under \texttt{unam.fi.compilers.g5.02}, relies on five core components that coordinate the data flow from raw text to formatted token reports.
+
+\begin{itemize}
+	\item \textbf{Main CLI (\texttt{main.py}):} Acts as the orchestrator and entry point for the application. It utilizes \texttt{argparse} to handle command-line inputs (strings or files) and directs the overall execution flow.
+	\item \textbf{Reader (\texttt{io/reader.py}):} Responsible for input mechanism abstraction. It safely loads the source code from either direct string inputs or UTF-8 encoded files.
+	\item \textbf{Scanner (\texttt{lexer/scanner.py}):} The core engine that iterates through the input character by character. It coordinates the DFA states, manages the current line and column pointers, and registers any encountered errors using a Panic Mode recovery mechanism.
+	\item \textbf{DFA and Symbol Table (\texttt{lexer/dfa.py} \& \texttt{symbol\_table/symtab.py}):} The DFA module implements the State Pattern, using independent functions for each state to identify identifiers, numbers, strings, and operators via a ``maximal munch'' strategy. The Symbol Table applies early insertion; once a valid word is identified, it is queried to determine if it is a boolean literal, a reserved keyword, or a standard identifier.
+	\item \textbf{Writer (\texttt{io/writer.py}):} The final output layer that processes the list of valid tokens and lexical errors to generate a structured, human-readable report.
+\end{itemize}
+
+The data flows linearly: raw characters enter the Scanner, which interacts with the DFA and Symbol Table to extract lexemes. These are converted into immutable Token objects and passed to the Writer for final presentation.
+
+\section*{Theoretical Foundation}
+
+Although the primary scope of this project is the construction of a Lexical Analyzer, its true purpose is to supply a valid stream of tokens to a Parser (Syntax Analyzer). A parser evaluates these tokens against a Context-Free Grammar (CFG) to build a parsing tree, representing the syntactic structure of the program through a series of derivations and tree expansions. 
+
+To achieve efficient and deterministic parsing, top-down parsers (such as LL(1) predictive parsers) require grammar formulations that are free of both left recursion and ambiguity. If a grammar exhibits left recursion, a top-down parser can fall into an infinite loop. Similarly, if multiple production rules share common prefixes, the parser cannot determine which derivation to apply based on a single lookahead token. Therefore, grammar transformations like Left Factoring are strictly necessary to guarantee the veracity and performance of the parser relying on our lexer.
+
+\subsection*{Context-Free Grammar (CFG) Proposal}
+The following CFG excerpts demonstrate the theoretical syntax for variable declarations and print statements within our custom language. The terminal symbols in this grammar directly correspond to the token categories emitted by our Lexer (e.g., \texttt{INT}, \texttt{ID}, \texttt{ASSIGN}, \texttt{INTEGER}, \texttt{SEMICOLON}).
+
+The initial, unfactored grammar proposal for variable declarations and \texttt{printf} statements is defined as follows:
+
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} 
+\end{align*}
+
+\subsection*{Left Factoring Application}
+In the grammar proposed above, ambiguity arises for an LL(1) parser. Upon reading the \texttt{int} token, the parser cannot decide whether it is dealing with a variable assignment or a simple variable declaration without looking further ahead than one token. The same issue occurs with the \texttt{printf} token, as both productions begin with the common prefix \texttt{printf ( string}.
+
+To resolve this and make the grammar LL(1) compliant, we apply Left Factoring. This process extracts the common prefixes and postpones the parsing decision to a newly generated non-terminal symbol.
+
+\textbf{Factored Declaration Grammar:}
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{Rest} \\
+	\text{Rest} &\to \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \mid \text{\textbf{;}}
+\end{align*}
+
+\textbf{Factored Print Function Grammar:}
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{PrintRest} \\
+	\text{PrintRest} &\to \text{\textbf{)}}\ \text{\textbf{;}} \mid \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
+	\text{ArgList} &\to \text{\textbf{id}}\ \text{ArgList'} \\
+	\text{ArgList'} &\to \text{\textbf{,}}\ \text{\textbf{id}}\ \text{ArgList'} \mid \epsilon
+\end{align*}
+
+By transforming the grammar using left factoring, we guarantee that every parsing step is deterministic. Our Lexer bridges the gap by strictly enforcing token boundaries (maximal munch) and handling invalid characters beforehand, allowing the LL(1) parser to seamlessly consume the input and perform error-free derivations.
     
 \end{document}
