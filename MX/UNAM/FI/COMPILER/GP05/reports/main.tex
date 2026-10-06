@@ -1,0 +1,35 @@
+\documentclass[12pt]{report}
+\usepackage[utf8]{inputenc} % Indispensable para reconocer caracteres latinos
+\usepackage{verbatim} 
+\usepackage{graphicx} 
+\usepackage{amsmath,amssymb} 
+\usepackage{xcolor}
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{booktabs} % Necesario para \toprule, \midrule y \bottomrule
+
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{fullpage}
+
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{geometry}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta,calc,shapes.geometric}
+
+
+\begin{document}
+    \include{Portada}
+    \newpage
+
+    \newpage
+
+\section*{Introduction}
+The compilation process is fundamentally divided into several phases, with lexical analysis acting as the critical first step. This project presents the design and implementation of a hand-crafted Lexical Analyzer (Lexer) developed in Python. The primary objective of this module is to read raw source code, discard irrelevant characters such as whitespace and comments, and tokenize the input sequence into meaningful symbols. 
+
+Unlike automated solutions that rely on tools like FLEX or standard regular expression libraries, this lexer is built entirely from scratch using deterministic finite automaton (DFA) state functions. It is capable of recognizing 40 distinct token types (including keywords, identifiers, operators, constants, and punctuators) while distinguishing case sensitivity. Furthermore, the lexer implements a robust ``Panic Mode'' error recovery strategy, allowing it to detect and report multiple lexical errors—such as malformed numbers or unclosed string literals—without halting execution. Ultimately, the lexer produces a clean stream of tokens that forms the foundation for subsequent syntax analysis.\\
+
+    
+\end{document}
