@@ -53,7 +53,7 @@ cd MX/UNAM/FI/COMPILER/GP05/develop
 From the `develop` folder:
 
 ```bash
-python3 -m unam.fi.compilers.g5.02.web.app
+python3 -m web.app
 ```
 
 Then open your browser at:
