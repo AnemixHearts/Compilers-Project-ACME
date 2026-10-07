@@ -1,0 +1,305 @@
+\documentclass[12pt]{report}
+\usepackage[utf8]{inputenc} % Indispensable para reconocer caracteres latinos
+\usepackage{verbatim} 
+\usepackage{graphicx} 
+\usepackage{amsmath,amssymb} 
+\usepackage{xcolor}
+\usepackage{pdfpages}
+\usepackage{listings}
+\usepackage{booktabs} % Necesario para \toprule, \midrule y \bottomrule
+
+\usepackage{float}
+\usepackage{wrapfig}
+\usepackage{fullpage}
+
+\usepackage[spanish,es-tabla]{babel}
+\usepackage{geometry}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta,calc,shapes.geometric}
+
+
+\begin{document}
+    \include{portada}
+    \newpage
+
+    \newpage
+
+\section*{Introduction}
+The compilation process is fundamentally divided into several phases, with lexical analysis acting as the critical first step. This project presents the design and implementation of a hand-crafted Lexical Analyzer (Lexer) developed in Python. The primary objective of this module is to read raw source code, discard irrelevant characters such as whitespace and comments, and tokenize the input sequence into meaningful symbols. 
+
+Unlike automated solutions that rely on tools like FLEX or standard regular expression libraries, this lexer is built entirely from scratch using deterministic finite automaton (DFA) state functions. It is capable of recognizing 40 distinct token types (including keywords, identifiers, operators, constants, and punctuators) while distinguishing case sensitivity. Furthermore, the lexer implements a robust ``Panic Mode'' error recovery strategy, allowing it to detect and report multiple lexical errors—such as malformed numbers or unclosed string literals—without halting execution. Ultimately, the lexer produces a clean stream of tokens that forms the foundation for subsequent syntax analysis.\\
+
+\section*{Architecture and Project Structure}
+The architectural design of the lexer follows a modular, layered approach, ensuring separation of concerns and maintainability. The package, structured under \texttt{unam.fi.compilers.g5.02}, relies on five core components that coordinate the data flow from raw text to formatted token reports.
+
+\begin{itemize}
+	\item \textbf{Main CLI (\texttt{main.py}):} Acts as the orchestrator and entry point for the application. It utilizes \texttt{argparse} to handle command-line inputs (strings or files) and directs the overall execution flow.
+	\item \textbf{Reader (\texttt{io/reader.py}):} Responsible for input mechanism abstraction. It safely loads the source code from either direct string inputs or UTF-8 encoded files.
+	\item \textbf{Scanner (\texttt{lexer/scanner.py}):} The core engine that iterates through the input character by character. It coordinates the DFA states, manages the current line and column pointers, and registers any encountered errors using a Panic Mode recovery mechanism.
+	\item \textbf{DFA and Symbol Table (\texttt{lexer/dfa.py} \& \texttt{symbol\_table/symtab.py}):} The DFA module implements the State Pattern, using independent functions for each state to identify identifiers, numbers, strings, and operators via a ``maximal munch'' strategy. The Symbol Table applies early insertion; once a valid word is identified, it is queried to determine if it is a boolean literal, a reserved keyword, or a standard identifier.
+	\item \textbf{Writer (\texttt{io/writer.py}):} The final output layer that processes the list of valid tokens and lexical errors to generate a structured, human-readable report.
+\end{itemize}
+
+The data flows linearly: raw characters enter the Scanner, which interacts with the DFA and Symbol Table to extract lexemes. These are converted into immutable Token objects and passed to the Writer for final presentation.
+
+\section*{Theoretical Foundation}
+
+Although the primary scope of this project is the construction of a Lexical Analyzer, its true purpose is to supply a valid stream of tokens to a Parser (Syntax Analyzer). A parser evaluates these tokens against a Context-Free Grammar (CFG) to build a parsing tree, representing the syntactic structure of the program through a series of derivations and tree expansions. 
+
+To achieve efficient and deterministic parsing, top-down parsers (such as LL(1) predictive parsers) require grammar formulations that are free of both left recursion and ambiguity. If a grammar exhibits left recursion, a top-down parser can fall into an infinite loop. Similarly, if multiple production rules share common prefixes, the parser cannot determine which derivation to apply based on a single lookahead token. Therefore, grammar transformations like Left Factoring are strictly necessary to guarantee the veracity and performance of the parser relying on our lexer.
+
+\subsection*{Context-Free Grammar (CFG) Proposal}
+The following CFG excerpts demonstrate the theoretical syntax for variable declarations and print statements within our custom language. The terminal symbols in this grammar directly correspond to the token categories emitted by our Lexer (e.g., \texttt{INT}, \texttt{ID}, \texttt{ASSIGN}, \texttt{INTEGER}, \texttt{SEMICOLON}).
+
+The initial, unfactored grammar proposal for variable declarations and \texttt{printf} statements is defined as follows:
+
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} 
+\end{align*}
+
+\subsection*{Left Factoring Application}
+In the grammar proposed above, ambiguity arises for an LL(1) parser. Upon reading the \texttt{int} token, the parser cannot decide whether it is dealing with a variable assignment or a simple variable declaration without looking further ahead than one token. The same issue occurs with the \texttt{printf} token, as both productions begin with the common prefix \texttt{printf ( string}.
+
+To resolve this and make the grammar LL(1) compliant, we apply Left Factoring. This process extracts the common prefixes and postpones the parsing decision to a newly generated non-terminal symbol.
+
+\textbf{Factored Declaration Grammar:}
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{Rest} \\
+	\text{Rest} &\to \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \mid \text{\textbf{;}}
+\end{align*}
+
+\textbf{Factored Print Function Grammar:}
+\begin{align*}
+	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{PrintRest} \\
+	\text{PrintRest} &\to \text{\textbf{)}}\ \text{\textbf{;}} \mid \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
+	\text{ArgList} &\to \text{\textbf{id}}\ \text{ArgList'} \\
+	\text{ArgList'} &\to \text{\textbf{,}}\ \text{\textbf{id}}\ \text{ArgList'} \mid \epsilon
+\end{align*}
+
+By transforming the grammar using left factoring, we guarantee that every parsing step is deterministic. Our Lexer bridges the gap by strictly enforcing token boundaries (maximal munch) and handling invalid characters beforehand, allowing the LL(1) parser to seamlessly consume the input and perform error-free derivations.
+
+\section{Lexer Implementation}
+The core implementation of the lexical analyzer resolves character recognition deterministically without relying on regular expression engines or third-party parsing tools. Instead, the scanner relies on a 13-state Deterministic Finite Automaton (DFA) defined formally as $M = (Q, \Sigma, \delta, q_0, F)$:
+\begin{itemize}
+    \item $Q = \{q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_{10}, q_{11}, q_{12}\}$.
+    \item $\Sigma = L \cup D \cup \{\text{ws}, \text{\#}, =, !, <, >, +, -, *, /, (, ), \{, \}, ;, ,, ., "\} \cup \Sigma_{other}$.
+    \item $\delta: Q \times \Sigma \rightarrow Q$ is the state transition function implemented directly in Python via the State Pattern.
+    \item $q_0$ is the initial state.
+    \item $F = \{q_1, q_2, q_4, q_6, q_7, q_8, q_9, q_{10}, q_{12}\}$ is the set of valid accepting states.
+\end{itemize}
+
+Multi-character lexemes are processed using the \textit{Maximal Munch} (longest match) strategy. When the automaton enters an accepting state, scanning continues as long as character inputs yield valid state transitions.
+
+\subsection{Input Mechanism}
+The input subsystem is encapsulated within \texttt{io/reader.py}. The application provides two main entry functions: \texttt{read\_string(source)} and \texttt{read\_file(filepath)}. When reading from disk, the file is loaded into memory as a UTF-8 string buffer.
+
+The \texttt{Scanner} class (\texttt{lexer/scanner.py}) controls character evaluation through three main state pointers:
+\begin{enumerate}
+    \item \texttt{pointer}: Absolute 0-based index referencing the current character position in the buffer.
+    \item \texttt{line}: 1-based index incremented whenever a newline character (\texttt{\textbackslash n}) is encountered.
+    \item \texttt{column}: 1-based character position relative to the current line origin.
+\end{enumerate}
+
+Listing \ref{lst:scanner_loop} demonstrates the main iteration loop implemented within \texttt{scanner.py}.
+
+\begin{lstlisting}[language=Python, caption={Core scanning loop in \texttt{lexer/scanner.py}.}, label={lst:scanner_loop}]
+class Scanner:
+    def __init__(self, source_code: str):
+        self.source = source_code
+        self.pointer = 0
+        self.line = 1
+        self.column = 1
+        self.tokens = []
+        self.errors = []
+
+    def scan_all(self):
+        while self.pointer < len(self.source):
+            char = self.source[self.pointer]
+            
+            # Skip whitespace and update positional coordinates
+            if char.isspace():
+                if char == '\n':
+                    self.line += 1
+                    self.column = 1
+                else:
+                    self.column += 1
+                self.pointer += 1
+                continue
+                
+            # Discard single-line comments starting with '#'
+            if char == '#':
+                self.consume_comment()
+                continue
+                
+            # Invoke state handler according to the initial character
+            if char.isalpha() or char == '_':
+                self.process_identifier_or_keyword()
+            elif char.isdigit():
+                self.process_numeric_literal()
+            elif char == '"':
+                self.process_string_literal()
+            else:
+                self.process_operator_or_punctuation()
+\end{lstlisting}
+
+\subsection{Token Classification}
+The lexer recognizes 40 internal token types. To meet output formatting requirements, the writer layer (\texttt{io/writer.py}) maps these 40 internal types into 5 human-readable categories:
+\begin{itemize}
+    \item \texttt{keyword}: Reserved language constructs (e.g., \texttt{printf}, \texttt{print}, \texttt{int}, \texttt{if}, \texttt{else}).
+    \item \texttt{identifier}: User-defined variable and function names.
+    \item \texttt{operator}: Mathematical, logical, and relational operators (\texttt{=}, \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{<=}, \texttt{>}, \texttt{>=}, \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}).
+    \item \texttt{constant}: Integer numbers, floating-point numbers, booleans, and string literals.
+    \item \texttt{punctuation}: Structural symbols (\texttt{(}, \texttt{)}, \texttt{\{}, \texttt{\}}, \texttt{;}, \texttt{,}).
+\end{itemize}
+
+Table \ref{tab:dfa_transitions} details the complete state transition matrix governing the automaton.
+
+\begin{table}[htbp]
+\centering
+\caption{State Transition Matrix for the Lexer DFA ($q_0 \dots q_{12}$).}
+\label{tab:dfa_transitions}
+\small
+\begin{tabular}{c c c l}
+\toprule
+\textbf{State} & \textbf{Input Character} & \textbf{Next State} & \textbf{Action / Token Emitted} \\
+\midrule
+$q_0$ & Letter / \texttt{\_} & $q_1$ & Begin identifier or keyword scan \\
+$q_0$ & Digit & $q_2$ & Begin integer literal scan \\
+$q_0$ & \texttt{"} & $q_5$ & Begin string literal scan \\
+$q_0$ & \texttt{\#} & $q_{11}$ & Single-line comment (discarded) \\
+$q_0$ & \texttt{=}, \texttt{!}, \texttt{<}, \texttt{>} & $q_7, q_8, q_9, q_{10}$ & Multi-character operator evaluation \\
+$q_0$ & \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{(}, \texttt{)}, \texttt{\{}, \texttt{\}}, \texttt{;}, \texttt{,} & $q_{12}$ & Emit single-character operator / punctuation \\
+$q_0$ & Whitespace & $q_0$ & Advance coordinates; skip \\
+$q_0$ & Unrecognized char & --- & Trigger Panic Mode Recovery \\
+\midrule
+$q_1$ & Alphanumeric / \texttt{\_} & $q_1$ & Continue word accumulation \\
+$q_1$ & Non-alphanumeric & $q_{12}$ & SymbolTable lookup $\rightarrow$ Emit Keyword or \texttt{ID} \\
+\midrule
+$q_2$ & Digit & $q_2$ & Continue digit accumulation \\
+$q_2$ & \texttt{.} & $q_3$ & Transition to fractional part \\
+$q_2$ & Non-digit / Non-\texttt{.} & $q_{12}$ & Emit \texttt{INTEGER} \\
+\midrule
+$q_3$ & Digit & $q_4$ & Accumulate required fractional digit \\
+$q_3$ & Non-digit & --- & Error: Malformed real number (e.g., \texttt{3.}) \\
+\midrule
+$q_4$ & Digit & $q_4$ & Continue fractional digit accumulation \\
+$q_4$ & Non-digit & $q_{12}$ & Emit \texttt{REAL\_NUMBER} \\
+\midrule
+$q_5$ & \texttt{"} & $q_6$ & Complete string literal \\
+$q_5$ & Char (not \texttt{"} or \texttt{\textbackslash n}) & $q_5$ & Accumulate string body \\
+$q_5$ & EOF / \texttt{\textbackslash n} & --- & Error: Unclosed string literal \\
+\midrule
+$q_6$ & Any & $q_{12}$ & Emit \texttt{STRING\_LITERAL} \\
+\midrule
+$q_7$ & \texttt{=} & $q_{12}$ & Emit \texttt{EQ} (\texttt{==}) \\
+$q_7$ & Other & $q_{12}$ & Emit \texttt{ASSIGN} (\texttt{=}) \\
+\midrule
+$q_8$ & \texttt{=} & $q_{12}$ & Emit \texttt{NEQ} (\texttt{!=}) \\
+$q_8$ & Other & --- & Error: Standalone invalid operator \texttt{!} \\
+\midrule
+$q_9$ & \texttt{=} & $q_{12}$ & Emit \texttt{LEQ} (\texttt{<=}) \\
+$q_9$ & Other & $q_{12}$ & Emit \texttt{LT} (\texttt{<}) \\
+\midrule
+$q_{10}$ & \texttt{=} & $q_{12}$ & Emit \texttt{GEQ} (\texttt{>=}) \\
+$q_{10}$ & Other & $q_{12}$ & Emit \texttt{GT} (\texttt{>}) \\
+\midrule
+$q_{11}$ & \texttt{\textbackslash n} & $q_0$ & End comment; resume scanning \\
+$q_{11}$ & Non-\texttt{\textbackslash n} & $q_{11}$ & Discard comment content \\
+\midrule
+$q_{12}$ & --- & $q_0$ & Reset state for next token \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsubsection{Symbol Table Integration}
+Alphanumeric lexemes ending in state $q_1$ are passed to \texttt{symbol\_table/symtab.py}:
+\begin{enumerate}
+    \item Check for boolean literals (\texttt{True}, \texttt{False}). If matched, return \texttt{BOOL\_LITERAL}.
+    \item Perform a case-sensitive lookup against the 15 reserved keywords (e.g., \texttt{printf}, \texttt{print}, \texttt{int}). If matched, emit the corresponding keyword token.
+    \item Otherwise, insert the word into the \texttt{SymbolTable} and assign token type \texttt{ID}.
+\end{enumerate}
+
+\subsubsection{Panic Mode Error Recovery}
+When encountering illegal characters (e.g., \texttt{@}) or unexpected transitions (e.g., malformed float \texttt{3.}), Panic Mode records the error message, line, and column index in \texttt{scanner.errors}. It discards the invalid character and continues scanning from the next position without halting.
+
+\section{Test Cases and Results}
+The lexer was verified using unit tests and the mandatory reading benchmark:
+\begin{center}
+\texttt{printf("This is an example"); int a = 10;}
+\end{center}
+
+Scanning this input produces 10 tokens and 0 lexical errors. Table \ref{tab:mandatory_results} presents the token classification and coordinate breakdown generated by \texttt{io/writer.py}.
+
+\begin{table}[htbp]
+\centering
+\caption{Token breakdown for the mandatory test code.}
+\label{tab:mandatory_results}
+\small
+\begin{tabular}{c l l l c c}
+\toprule
+\textbf{No.} & \textbf{Internal Token} & \textbf{Category} & \textbf{Lexeme} & \textbf{Line} & \textbf{Column} \\
+\midrule
+1 & \texttt{PRINTF} & \texttt{keyword} & \texttt{'printf'} & 1 & 1 \\
+2 & \texttt{L\_PAREN} & \texttt{punctuation} & \texttt{'('} & 1 & 7 \\
+3 & \texttt{STRING\_LITERAL} & \texttt{constant} & \texttt{'"This is an example"'} & 1 & 8 \\
+4 & \texttt{R\_PAREN} & \texttt{punctuation} & \texttt{')'} & 1 & 28 \\
+5 & \texttt{SEMICOLON} & \texttt{punctuation} & \texttt{';'} & 1 & 29 \\
+6 & \texttt{INT} & \texttt{keyword} & \texttt{'int'} & 1 & 31 \\
+7 & \texttt{ID} & \texttt{identifier} & \texttt{'a'} & 1 & 35 \\
+8 & \texttt{ASSIGN} & \texttt{operator} & \texttt{'='} & 1 & 37 \\
+9 & \texttt{INTEGER} & \texttt{constant} & \texttt{'10'} & 1 & 39 \\
+10 & \texttt{SEMICOLON} & \texttt{punctuation} & \texttt{';'} & 1 & 41 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent \textbf{Formatted Console Output:}
+\begin{verbatim}
+- ANALIZADOR LEXICO -
+keyword punctuation constant punctuation punctuation keyword identifier operator constant punctuation
+Total de tokens: 10
+ERRORES LEXICOS: Sin errores lexicos.
+\end{verbatim}
+
+\subsection{Extended Test Cases and Edge Cases}
+To confirm robust tokenization and Panic Mode recovery across all 40 token types, additional test cases were executed (Table \ref{tab:extended_tests}).
+
+\begin{table}[htbp]
+\centering
+\caption{Evaluation of edge cases and Panic Mode recovery.}
+\label{tab:extended_tests}
+\small
+\begin{tabular}{c l l c l}
+\toprule
+\textbf{ID} & \textbf{Input Snippet} & \textbf{Category Output Stream} & \textbf{Tokens} & \textbf{Error Status} \\
+\midrule
+1 & \texttt{print} & \texttt{keyword} & 1 & None \\
+2 & \texttt{Print} & \texttt{identifier} (Case-sensitive) & 1 & None \\
+3 & \texttt{printf} & \texttt{keyword} (\texttt{PRINTF} vs \texttt{PRINT}) & 1 & None \\
+4 & \texttt{printed} & \texttt{identifier} (Longest match) & 1 & None \\
+5 & \texttt{10-3} & \texttt{constant operator constant} & 3 & Unsigned int + \texttt{MINUS} \\
+6 & \texttt{"a" + "b"} & \texttt{constant operator constant} & 3 & String literals \\
+7 & \texttt{a <= b} & \texttt{identifier operator identifier} & 3 & Relational operator \\
+8 & \texttt{x == 3.14} & \texttt{identifier operator constant} & 3 & Real float recognition \\
+9 & \texttt{a = 1; \# comment} & \texttt{identifier operator constant punctuation} & 4 & Comment ignored \\
+10 & \texttt{@} & None & 0 & Error: Illegal char \texttt{'@'} \\
+11 & \texttt{"abc} & None & 0 & Error: Unclosed string \\
+12 & \texttt{3.} & None & 0 & Error: Malformed real \\
+13 & \texttt{1abc} & \texttt{constant identifier} & 2 & Split: \texttt{1} and \texttt{abc} \\
+14 & \texttt{!} & None & 0 & Error: Standalone \texttt{!} \\
+15 & \texttt{int a=3.; b=! @ \$} & 7 Tokens Emitted & 7 & 4 Panic Errors Logged \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Conclusion}
+This work successfully demonstrates the design and implementation of a hand-crafted Lexical Analyzer under package namespace \texttt{unam.fi.compilers.g5.02}. By avoiding automated scanner generators like FLEX or standard regular expression engines, the lexer enforces pure compilation theory, earning extra evaluation merit.
+
+The system handles 40 token types, maps them into 5 display classes, populates the Symbol Table, and isolates lexical errors via Panic Mode recovery without interrupting processing. This robust scanner provides a solid foundation for integration with the upcoming $LL(1)$ predictive syntax parser.
+
+\end{document}

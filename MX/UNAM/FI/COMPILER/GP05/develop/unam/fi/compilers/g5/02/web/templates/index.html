@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Analizador Léxico - Equipo 02</title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='style.css') }}"
+    >
+</head>
+
+<body>
+
+    <main class="container">
+
+        <header class="header">
+
+            <div>
+                <h1>Analizador Léxico</h1>
+                <p>Compiladores - Grupo 05 - Equipo 02 - FI UNAM</p>
+            </div>
+
+            <div class="badge">
+                DFA MANUAL
+            </div>
+
+        </header>
+
+
+        <section class="panel">
+
+            <div class="section-title">
+                <h2>Código fuente</h2>
+                <span>Entrada</span>
+            </div>
+
+            <form method="post">
+
+                <textarea
+                    id="codigo"
+                    name="codigo"
+                    placeholder='printf("This is an example");&#10;int a = 10;'
+                >{{ codigo }}</textarea>
+
+                <div class="form-actions">
+
+                    <button type="submit">
+                        Analizar código
+                    </button>
+
+                </div>
+
+            </form>
+
+        </section>
+
+
+        {% if tokens %}
+
+        <section class="summary">
+
+            <div class="summary-card">
+                <span class="summary-label">Tokens</span>
+                <strong>{{ total_tokens }}</strong>
+            </div>
+
+            <div class="summary-card">
+                <span class="summary-label">Errores</span>
+                <strong>{{ total_errores }}</strong>
+            </div>
+
+            <div class="summary-card">
+                <span class="summary-label">Categorías</span>
+                <strong>{{ categorias|length }}</strong>
+            </div>
+
+            <div class="summary-card">
+                <span class="summary-label">Estado</span>
+                <strong>
+                    {% if total_errores == 0 %}
+                        OK
+                    {% else %}
+                        ERROR
+                    {% endif %}
+                </strong>
+            </div>
+
+            <div class="summary-card">
+                <span class="summary-label">Tokens soportados</span>
+                 <strong>{{ total_tokens_soportados }}</strong>
+            </div>
+
+        </section>
+
+
+        <section class="panel">
+
+            <div class="section-title">
+                <h2>Tokens encontrados</h2>
+                <span>{{ total_tokens }} tokens</span>
+            </div>
+
+            <div class="table-wrapper">
+
+    <table>
+
+        <thead>
+            <tr>
+                <th>No.</th>
+                <th>Tipo</th>
+                <th>Categoría</th>
+                <th>Lexema</th>
+                <th>Línea</th>
+                <th>Columna</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+            {% for token, categoria in tokens_con_categoria %}
+
+            <tr>
+
+                <td>{{ loop.index }}</td>
+
+                <td>
+                    <span class="token-type">
+                        {{ token.tipo }}
+                    </span>
+                </td>
+
+                <td>
+                    <span class="category">
+                        {{ categoria }}
+                    </span>
+                </td>
+
+                <td class="lexeme">
+                    {{ token.lexema }}
+                </td>
+
+                <td>{{ token.linea }}</td>
+
+                <td>{{ token.columna }}</td>
+
+            </tr>
+
+            {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+        </section>
+
+
+        <section class="panel">
+
+            <div class="section-title">
+                <h2>Tabla de símbolos</h2>
+                <span>{{ symbol_table|length }} símbolos</span>
+            </div>
+
+            {% if symbol_table %}
+
+            <div class="table-wrapper">
+
+                <table>
+
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Línea de declaración</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for symbol in symbol_table %}
+
+                        <tr>
+                            <td class="lexeme">
+                                {{ symbol.name }}
+                            </td>
+
+                            <td>
+                                {{ symbol.declaration_line }}
+                            </td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+            {% else %}
+
+                <div class="empty-state">
+                    No se encontraron identificadores.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+
+        <section class="panel">
+
+            <div class="section-title">
+                <h2>Errores léxicos</h2>
+            </div>
+
+            {% if errores %}
+
+                <div class="error-list">
+
+                    {% for error in errores %}
+
+                    <div class="error-item">
+
+                        <strong>
+                            Línea {{ error.linea }},
+                            columna {{ error.columna }}
+                        </strong>
+
+                        <span>
+                            {{ error.mensaje }}
+                        </span>
+
+                    </div>
+
+                    {% endfor %}
+
+                </div>
+
+            {% else %}
+
+                <div class="success-state">
+                    Sin errores léxicos.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+        {% endif %}
+
+       <section class="panel">
+
+    <div class="section-title">
+        <h2>Catálogo de tokens</h2>
+        <span>{{ total_tokens_soportados }} tokens definidos</span>
+    </div>
+
+    <div class="token-catalog">
+
+        {% for categoria, tipos in catalogo_tokens.items() %}
+
+        <div class="catalog-group">
+
+            <div class="catalog-header">
+                <span>{{ categoria }}</span>
+                <strong>{{ tipos|length }}</strong>
+            </div>
+
+            <div class="token-chips">
+
+                {% for tipo in tipos %}
+
+                    <span class="token-chip">
+                        {{ tipo }}
+                    </span>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</section>
+
+        <footer>
+
+            <span>Analizador Léxico · Equipo 02</span>
+
+            <span>
+                Implementación manual mediante DFA
+            </span>
+
+        </footer>
+
+    </main>
+
+</body>
+</html>
