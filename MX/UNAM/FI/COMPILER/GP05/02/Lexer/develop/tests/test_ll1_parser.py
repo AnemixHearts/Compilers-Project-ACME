@@ -161,3 +161,47 @@ class TestLL1Parser(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+    def test_traza_sin_pasos_duplicados(self):
+
+        scanner = Scanner("int x = 10;")
+        tokens = scanner.escanear()
+
+        parser = LL1Parser()
+        ok, root, error_line = parser.parse(tokens)
+
+        self.assertTrue(ok)
+
+        steps = [
+            row["step"]
+            for row in parser.trace
+        ]
+
+        # Los pasos deben ser consecutivos.
+        self.assertEqual(
+            steps,
+            list(range(1, len(steps) + 1))
+        )
+
+        # Cada iteración genera exactamente una fila.
+        self.assertEqual(
+            len(steps),
+            len(set(steps))
+        )
+
+        # No debe haber acciones duplicadas consecutivas
+        # de reconocimiento del mismo token.
+        actions = [
+            row["action"]
+            for row in parser.trace
+        ]
+
+        for previous, current in zip(
+            actions,
+            actions[1:]
+        ):
+            self.assertFalse(
+                previous == current
+                and previous.startswith("Match ")
+            )

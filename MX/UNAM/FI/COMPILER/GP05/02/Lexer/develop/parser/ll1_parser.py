@@ -8,6 +8,8 @@ Utiliza:
 - Una tabla de análisis LL(1).
 - Un árbol sintáctico construido con ASTNode.
 
+Registra una sola acción por iteración, conservando
+el estado de la pila y de la entrada antes de cada operación.
 """
 
 from ..models.ast_node import ASTNode
@@ -27,10 +29,6 @@ class LL1Parser:
     def __init__(self, parsing_table=None, terminals=None):
         """
         Inicializa el Parser LL(1).
-
-        Args:
-            parsing_table: Tabla predictiva LL(1).
-            terminals: Conjunto de símbolos terminales.
         """
 
         self.table = (
@@ -53,12 +51,9 @@ class LL1Parser:
         """
         Realiza el análisis sintáctico de una lista de tokens.
 
-        Args:
-            tokens (list[Token]): Tokens generados por el Lexer.
-
         Returns:
             tuple:
-                (True, parse_tree, None) si el análisis tiene éxito.
+                (True, parse_tree, None) si tiene éxito.
                 (False, None, error_line) si encuentra un error.
         """
 
@@ -75,12 +70,12 @@ class LL1Parser:
                     "El Parser solamente acepta objetos Token."
                 )
 
-        # 1. Preparar el búfer de entrada
+        # 1. PREPARAR EL BÚFER DE ENTRADA
 
         if tokens:
             last_line = tokens[-1].linea
-            last_column = tokens[-1].columna + len(
-                tokens[-1].lexema
+            last_column = (
+                tokens[-1].columna + len(tokens[-1].lexema)
             )
         else:
             last_line = 1
@@ -96,7 +91,7 @@ class LL1Parser:
 
         input_buffer = tokens + [eof_token]
 
-        # 2. Inicializar el árbol sintáctico
+          # 2. INICIALIZAR EL ÁRBOL SINTÁCTICO
 
         root = ASTNode(START_SYMBOL, line=1)
 
@@ -105,8 +100,7 @@ class LL1Parser:
             line=last_line
         )
 
-        # La lista representa la pila:
-        # El último elemento es el tope.
+        # El último elemento es el tope de la pila.
         stack = [
             (END_MARKER, end_node),
             (START_SYMBOL, root)
@@ -115,40 +109,45 @@ class LL1Parser:
         idx = 0
         step = 1
 
-        # 3. Algoritmo predictivo LL(1)
+        # 3. ALGORITMO PREDICTIVO LL(1)
 
         while stack:
 
+            # Guardar el estado ANTES de ejecutar la acción.
+            stack_before = [
+                symbol for symbol, _ in stack
+            ]
+
+            input_idx_before = idx
+
             if idx >= len(input_buffer):
+
                 self.error_line = last_line
+
                 self.error_message = (
                     "El búfer de entrada terminó inesperadamente."
                 )
 
                 self._record_trace(
                     step,
-                    stack,
+                    stack_before,
                     input_buffer,
-                    idx,
+                    input_idx_before,
                     "Error: fin inesperado del búfer."
                 )
 
                 return False, None, self.error_line
 
-            # Obtener el símbolo en el tope de la pila.
+            # Obtener símbolo del tope.
             top_symbol, top_node = stack[-1]
 
-            stack_before = [
-                symbol for symbol, _ in stack
-            ]
-
-            # Obtener el token actual.
+            # Obtener token actual.
             current_token = input_buffer[idx]
 
-            # Determinar el símbolo de preanálisis.
+            # Obtener símbolo de preanálisis.
             lookahead = map_lookahead(current_token)
 
-            # CASO 1: Aceptación
+               # CASO 1: ACEPTACIÓN
 
             if (
                 top_symbol == END_MARKER
@@ -157,9 +156,9 @@ class LL1Parser:
 
                 self._record_trace(
                     step,
-                    stack,
+                    stack_before,
                     input_buffer,
-                    idx,
+                    input_idx_before,
                     "Parsing Success!"
                 )
 
@@ -167,8 +166,7 @@ class LL1Parser:
 
                 return True, root, None
 
-
-            # CASO 2: El tope es un terminal
+               # CASO 2: EL TOPE ES UN TERMINAL
 
             if top_symbol in self.terminals:
 
@@ -179,22 +177,12 @@ class LL1Parser:
                         f"({current_token.lexema!r})"
                     )
 
-                    self._record_trace(
-                        step,
-                        stack,
-                        input_buffer,
-                        idx,
-                        action
-                    )
-
                     # Asociar el token original con la hoja.
                     top_node.token = current_token
                     top_node.line = current_token.linea
 
-                    # Quitar el terminal de la pila.
+                    # Consumir terminal y avanzar entrada.
                     stack.pop()
-
-                    # Avanzar el búfer de entrada.
                     idx += 1
 
                 else:
@@ -209,15 +197,15 @@ class LL1Parser:
 
                     self._record_trace(
                         step,
-                        stack,
+                        stack_before,
                         input_buffer,
-                        idx,
+                        input_idx_before,
                         "Error: discrepancia de terminal."
                     )
 
                     return False, None, self.error_line
 
-            # CASO 3: El tope es un no terminal
+            # CASO 3: EL TOPE ES UN NO TERMINAL
 
             else:
 
@@ -225,7 +213,7 @@ class LL1Parser:
                     (top_symbol, lookahead)
                 )
 
-                # Celda vacía en la tabla LL(1).
+                # No existe producción en la tabla.
                 if production is None:
 
                     self.error_line = current_token.linea
@@ -237,20 +225,20 @@ class LL1Parser:
 
                     self._record_trace(
                         step,
-                        stack,
+                        stack_before,
                         input_buffer,
-                        idx,
+                        input_idx_before,
                         "Error: celda vacía en la tabla LL(1)."
                     )
 
                     return False, None, self.error_line
 
-                # La producción encontrada se aplica.
+                # Aplicar la producción.
                 stack.pop()
 
                 if production:
 
-                    # Crear los hijos en orden de producción.
+                    # Crear nodos hijos en orden gramatical.
                     child_nodes = [
                         ASTNode(
                             symbol,
@@ -259,66 +247,70 @@ class LL1Parser:
                         for symbol in production
                     ]
 
-                    # Agregar los hijos al árbol.
+                    # Agregar hijos al árbol.
                     for child in child_nodes:
                         top_node.add_child(child)
 
-                    # Apilar en orden inverso para procesar
-                    # primero el símbolo más a la izquierda.
+                    # Apilar en orden inverso.
                     for child in reversed(child_nodes):
                         stack.append(
                             (child.symbol, child)
                         )
 
-                # Registrar la acción realizada.
-                if production:
-                    production_text = " ".join(production)
-                else:
-                    production_text = "ε"
+                # Construir descripción de la producción.
+                production_text = (
+                    " ".join(production)
+                    if production
+                    else "ε"
+                )
 
                 action = (
                     f"{top_symbol} → {production_text}"
                 )
 
+            # REGISTRO ÚNICO DE LA ITERACIÓN
+
+            # Esta llamada se realiza exactamente una vez
+            # por iteración exitosa del algoritmo.
+            #
+            # Utiliza stack_before e input_idx_before,
+            # por lo que registra el estado previo a la acción.
+
             self._record_trace(
                 step,
                 stack_before,
                 input_buffer,
-                idx,
-                 action,
-                 use_saved_stack=True
-            )   
+                input_idx_before,
+                action
+            )
 
             step += 1
 
-        # Si la pila se vacía sin alcanzar la aceptación.
+        # Si la pila se vacía sin alcanzar EOF.
         self.error_line = last_line
-        self.error_message = "El análisis terminó sin aceptar EOF."
+
+        self.error_message = (
+            "El análisis terminó sin aceptar EOF."
+        )
 
         return False, None, self.error_line
+
+    # 4. REGISTRO DE LA TRAZA
 
     def _record_trace(
         self,
         step,
-        stack,
+        stack_symbols,
         input_buffer,
         idx,
-        action,
-        use_saved_stack=False
+        action
     ):
         """
-        Guarda la traza de una iteración.
+        Registra una iteración del Parser.
 
-        La pila se presenta desde la base hasta el tope.
+        Cada fila representa el estado anterior
+        a la acción que se va a ejecutar.
         """
-
-        if use_saved_stack:
-            stack_symbols = stack
-        else:
-            stack_symbols = [
-                symbol
-                for symbol, _ in stack
-            ]
 
         input_symbols = [
             token.lexema
@@ -331,28 +323,6 @@ class LL1Parser:
             "input": " ".join(input_symbols),
             "action": action
         })
-
-    def _trace_stack_before(self, stack, top_symbol, production):
-        """
-        Reconstruye la pila anterior a la aplicación
-        de una producción para documentar la traza.
-        """
-
-        # En este punto, el no terminal ya fue retirado
-        # y los símbolos de la producción ya fueron apilados.
-        result = [
-            symbol
-            for symbol, _ in stack
-        ]
-
-        if production:
-            for _ in production:
-                if result:
-                    result.pop()
-
-        result.append(top_symbol)
-
-        return result
 
     def get_trace(self):
         """
