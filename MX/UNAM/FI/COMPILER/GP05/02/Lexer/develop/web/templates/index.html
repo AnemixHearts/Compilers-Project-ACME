@@ -445,6 +445,7 @@
                             <th>Tipo</th>
                             <th>Tamaño</th>
                             <th>Dimensión</th>
+                            <th>Primera aparición</th>
                             <th>Línea de declaración</th>
                             <th>Líneas de uso</th>
                             <th>Dirección</th>
@@ -463,7 +464,20 @@
                             <td>{{ symbol.type }}</td>
                             <td>{{ symbol.size }}</td>
                             <td>{{ symbol.dimension }}</td>
-                            <td>{{ symbol.declaration_line }}</td>
+                            <td>
+                                {% if symbol.first_appearance_line is not none %}
+                                    {{ symbol.first_appearance_line }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if symbol.declaration_line is not none %}
+                                    {{ symbol.declaration_line }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
 
                             <td>
                                 {% if symbol.line_usage %}

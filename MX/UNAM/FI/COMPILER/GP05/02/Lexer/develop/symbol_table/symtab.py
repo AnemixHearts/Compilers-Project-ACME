@@ -27,8 +27,9 @@ class Symbol:
     size: int | str = "TBD"
     dimension: int | str = "TBD"
 
-    # Línea de primera aparición; se actualiza al confirmar
-    # la declaración semánticamente.
+    # Línea de declaración confirmada por el SDT.
+    # Permanece en None mientras el identificador solo haya sido
+    # registrado por el Lexer o su declaración no sea válida.
     declaration_line: Optional[int] = None
 
     # Lista de líneas donde se utiliza el identificador.
@@ -36,6 +37,11 @@ class Symbol:
 
     # Dirección de memoria asignada por el SDT.
     address: str = "TBD"
+
+    # Primera línea en la que el Lexer encontró el identificador.
+    # Se coloca al final para conservar el orden posicional anterior
+    # de los atributos del dataclass.
+    first_appearance_line: Optional[int] = None
 
     @property
     def usage_line(self):
@@ -184,7 +190,7 @@ class SymbolTable:
 
         symbol = Symbol(
             name=name,
-            declaration_line=line
+            first_appearance_line=line
         )
 
         self.symbols[name] = symbol

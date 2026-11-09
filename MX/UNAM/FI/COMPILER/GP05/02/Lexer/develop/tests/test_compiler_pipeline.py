@@ -1,5 +1,6 @@
 
 import unittest
+from unittest import result
 
 from ..main import run_compiler
 
@@ -47,8 +48,10 @@ class TestCompilerPipeline(unittest.TestCase):
 
         self.assertEqual(
             result["messages"][:2],
-            ["Parsing error...", "SDT error..."]
+            ["Parsing error...", "error in line 1"]
         )
+
+        self.assertNotIn("SDT error...", result["messages"])
 
         self.assertIsNotNone(result["syntax_error_line"])
 

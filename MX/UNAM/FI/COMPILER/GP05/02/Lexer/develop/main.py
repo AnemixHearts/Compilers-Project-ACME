@@ -69,7 +69,6 @@ def run_compiler(source_code):
 
         result["messages"] = [
             "Parsing error...",
-            "SDT error...",
             f"error in line {syntax_line}"
         ]
 

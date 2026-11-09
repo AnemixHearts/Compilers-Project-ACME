@@ -15,7 +15,8 @@ class TestSymbolTableSDT(unittest.TestCase):
         self.assertEqual(symbol.type, "TBD")
         self.assertEqual(symbol.size, "TBD")
         self.assertEqual(symbol.dimension, "TBD")
-        self.assertEqual(symbol.declaration_line, 1)
+        self.assertIsNone(symbol.declaration_line)
+        self.assertEqual(symbol.first_appearance_line, 1)
         self.assertEqual(symbol.line_usage, [])
         self.assertEqual(symbol.address, "TBD")
 
