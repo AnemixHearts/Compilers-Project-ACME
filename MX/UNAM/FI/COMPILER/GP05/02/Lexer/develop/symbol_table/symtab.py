@@ -1,39 +1,105 @@
-from dataclasses import dataclass
+
+"""
+Tabla de símbolos del compilador.
+
+Se comparte entre el Lexer y el analizador semántico SDT.
+
+El Lexer registra los identificadores con información pendiente (TBD).
+El SDT consulta y actualiza sus atributos cuando valida declaraciones
+y referencias a variables.
+"""
+
+from dataclasses import dataclass, field
 from typing import Optional
 
+# 1. REPRESENTACIÓN DE UN SÍMBOLO
 
 @dataclass
 class Symbol:
     """
     Representa una entrada de la tabla de símbolos.
-
-    Durante la fase léxica solamente conocemos con certeza
-    el nombre y la línea donde apareció. Los demás campos
-    quedan preparados para fases posteriores.
     """
 
     name: str
-    type: Optional[str] = None
-    size: Optional[int] = None
-    dimension: Optional[int] = None
-    declaration_line: Optional[int] = None
-    usage_line: Optional[int] = None
-    address: Optional[str] = None
 
+    # Atributos pendientes hasta la validación semántica.
+    type: str = "TBD"
+    size: int | str = "TBD"
+    dimension: int | str = "TBD"
+
+    # Línea de declaración confirmada por el SDT.
+    # Permanece en None mientras el identificador solo haya sido
+    # registrado por el Lexer o su declaración no sea válida.
+    declaration_line: Optional[int] = None
+
+    # Lista de líneas donde se utiliza el identificador.
+    line_usage: list[int] = field(default_factory=list)
+
+    # Dirección de memoria asignada por el SDT.
+    address: str = "TBD"
+
+    # Primera línea en la que el Lexer encontró el identificador.
+    # Se coloca al final para conservar el orden posicional anterior
+    # de los atributos del dataclass.
+    first_appearance_line: Optional[int] = None
+
+    @property
+    def usage_line(self):
+        """
+        Compatibilidad con la versión anterior de Symbol.
+
+        Devuelve la última línea de uso o None.
+        """
+
+        if not self.line_usage:
+            return None
+
+        return self.line_usage[-1]
+
+    @usage_line.setter
+    def usage_line(self, line):
+        if line is None:
+            self.line_usage.clear()
+        elif line not in self.line_usage:
+            self.line_usage.append(line)
+
+    @property
+    def line_decl(self):
+        """Alias para mantener compatibilidad con el diseño SDT."""
+
+        return self.declaration_line
+
+    @line_decl.setter
+    def line_decl(self, line):
+        self.declaration_line = line
+
+
+# 2. TABLA DE SÍMBOLOS
 
 class SymbolTable:
     """
     Tabla de símbolos del compilador.
 
-    Contiene:
-        - palabras reservadas del lenguaje
-        - identificadores encontrados durante el escaneo
-        - literales booleanos
-
-    Las palabras reservadas no se insertan como identificadores.
+    Responsabilidades:
+    - Registrar identificadores encontrados por el Lexer.
+    - Consultar identificadores.
+    - Identificar palabras reservadas y booleanos.
+    - Actualizar atributos mediante set().
+    - Limpiar entradas mediante reset().
     """
 
-    # Palabras reservadas y operadores lógicos.
+    # Tamaños en bytes definidos por el ejemplo de implementación
+    # del documento de diseño.
+    TYPE_SIZES = {
+        "int": 4,
+        "real": 8,
+        "bool": 1,
+        "string": 16
+    }
+
+    VALID_TYPES = frozenset(TYPE_SIZES)
+
+    # Palabras reservadas y operadores lógicos del Lexer actual.
     KEYWORDS = {
         "Start": "START",
         "if": "IF",
@@ -52,74 +118,70 @@ class SymbolTable:
         "bool": "BOOL_TYPE",
         "and": "AND",
         "or": "OR",
-        "not": "NOT",
+        "not": "NOT"
     }
 
-    # Literales booleanos.
     BOOLEAN_LITERALS = {
         "True",
-        "False",
+        "False"
     }
 
+    BASE_ADDRESS = 0x1000
+
+    # 3. INICIALIZACIÓN
+
     def __init__(self):
-        # Diccionario:
-        # nombre del identificador -> Symbol
         self.symbols = {}
+
+        # Próxima dirección disponible.
+        self.next_address = self.BASE_ADDRESS
+
+    # 4. BÚSQUEDA E INSERCIÓN
 
     def lookup(self, name):
         """
-        Busca un identificador en la tabla.
-
-        Args:
-            name (str): Nombre del identificador.
+        Busca un identificador.
 
         Returns:
-            Symbol | None:
-                Entrada encontrada o None.
+            Symbol | None
         """
 
         return self.symbols.get(name)
 
     def lookup_keyword(self, lexema):
         """
-        Busca un lexema en la tabla de palabras reservadas.
-
-        Args:
-            lexema (str): Lexema leído.
+        Busca una palabra reservada.
 
         Returns:
-            str | None:
-                Tipo de token de la palabra reservada,
-                o None si no es palabra reservada.
+            str | None: Tipo de token o None.
         """
 
         return self.KEYWORDS.get(lexema)
 
     def is_boolean_literal(self, lexema):
         """
-        Determina si un lexema es un literal booleano.
-
-        Args:
-            lexema (str): Lexema leído.
-
-        Returns:
-            bool: True si es True o False.
+        Comprueba si el lexema es True o False.
         """
 
         return lexema in self.BOOLEAN_LITERALS
 
     def insert(self, name, line=None):
         """
-        Inserta un identificador si todavía no existe.
+        Registra un identificador encontrado por el Lexer.
+
+        Los atributos semánticos comienzan como TBD.
+        No se duplican identificadores existentes.
 
         Args:
             name (str): Nombre del identificador.
-            line (int | None): Línea donde aparece por primera vez.
+            line (int | None): Línea de primera aparición.
 
         Returns:
-            Symbol:
-                Entrada existente o recién creada.
+            Symbol: Entrada existente o recién creada.
         """
+
+        if not isinstance(name, str) or not name:
+            raise ValueError("El nombre del símbolo no es válido.")
 
         existing = self.lookup(name)
 
@@ -128,22 +190,127 @@ class SymbolTable:
 
         symbol = Symbol(
             name=name,
-            declaration_line=line
+            first_appearance_line=line
         )
 
         self.symbols[name] = symbol
 
         return symbol
 
-    def contains(self, name):
+    # 5. ACTUALIZACIÓN DE ATRIBUTOS
+
+    def set(
+        self,
+        name,
+        data_type=None,
+        dimension=None,
+        line_usage=None,
+        line_decl=None
+    ):
         """
-        Indica si un identificador ya existe.
+        Actualiza los atributos de un identificador.
+
+        Se utiliza principalmente desde el SDT.
 
         Args:
-            name (str): Nombre del identificador.
+            name: Nombre del identificador.
+            data_type: Tipo confirmado.
+            dimension: Dimensión de la variable.
+            line_usage: Línea donde se utiliza.
+            line_decl: Línea real de declaración.
 
         Returns:
-            bool: True si existe, False en otro caso.
+            bool: True si se actualizó correctamente.
+        """
+
+        entry = self.lookup(name)
+
+        if entry is None:
+            return False
+
+        # Actualizar tipo y reservar memoria.
+        if data_type is not None:
+
+            if data_type not in self.VALID_TYPES:
+                raise ValueError(
+                    f"Tipo de dato no válido: {data_type}"
+                )
+
+            # No permitir declarar nuevamente un símbolo
+            # que ya tiene un tipo confirmado.
+            if entry.type != "TBD":
+                return False
+
+            entry.type = data_type
+
+            entry.size = self.TYPE_SIZES[data_type]
+
+            entry.dimension = (
+                0 if dimension is None else dimension
+            )
+
+            entry.address = hex(self.next_address)
+
+            self.next_address += entry.size
+
+        elif dimension is not None:
+            entry.dimension = dimension
+
+        # Actualizar la línea real de declaración.
+        if line_decl is not None:
+            entry.declaration_line = line_decl
+
+        # Registrar líneas de uso sin duplicarlas.
+        if line_usage is not None:
+
+            if line_usage not in entry.line_usage:
+                entry.line_usage.append(line_usage)
+
+        return True
+
+    # 6. REINICIO DE LA TABLA
+
+    def reset(self, scope_names=None):
+        """
+        Reinicia la tabla de símbolos.
+
+        Args:
+            scope_names (iterable | None):
+                Si es None, elimina todos los símbolos.
+                Si recibe nombres, elimina solamente esos símbolos.
+
+        Returns:
+            int: Cantidad de entradas eliminadas.
+        """
+
+        if scope_names is None:
+
+            removed = len(self.symbols)
+
+            self.symbols.clear()
+
+            self.next_address = self.BASE_ADDRESS
+
+            return removed
+
+        if isinstance(scope_names, str):
+            scope_names = [scope_names]
+
+        removed = 0
+
+        for name in scope_names:
+
+            if name in self.symbols:
+                del self.symbols[name]
+                removed += 1
+
+        return removed
+
+    # 7. FUNCIONES AUXILIARES
+
+    def contains(self, name):
+        """
+        Comprueba si un identificador está registrado.
         """
 
         return name in self.symbols
@@ -151,23 +318,18 @@ class SymbolTable:
     def all_symbols(self):
         """
         Devuelve todas las entradas de la tabla.
-
-        Returns:
-            list[Symbol]: Lista de símbolos registrados.
         """
 
         return list(self.symbols.values())
 
     def clear(self):
         """
-        Vacía la tabla de símbolos.
+        Mantiene compatibilidad con la implementación anterior.
+
+        Limpia toda la tabla y reinicia las direcciones.
         """
 
-        self.symbols.clear()
+        return self.reset()
 
     def __len__(self):
-        """
-        Permite usar len(symbol_table).
-        """
-
         return len(self.symbols)

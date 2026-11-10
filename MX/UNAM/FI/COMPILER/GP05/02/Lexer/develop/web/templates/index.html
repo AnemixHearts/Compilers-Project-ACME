@@ -1,10 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Analizador Léxico - Equipo 02</title>
+    <title>Compilador - Equipo 02</title>
 
     <link
         rel="stylesheet"
@@ -14,159 +15,425 @@
 
 <body>
 
-    <main class="container">
+{% macro render_tree(node) %}
+<li>
+    <span class="tree-node">
+        <strong>{{ node.symbol }}</strong>
 
-        <header class="header">
+        {% if node.token %}
+            <span class="tree-token">{{ node.token.lexema }}</span>
+        {% endif %}
 
-            <div>
-                <h1>Analizador Léxico</h1>
-                <p>Compiladores - Grupo 05 - Equipo 02 - FI UNAM</p>
+        {% if node.data_type != "void" %}
+            <span class="tree-type">{{ node.data_type }}</span>
+        {% endif %}
+
+        <small>Línea {{ node.line }}</small>
+    </span>
+
+    {% if node.children %}
+        <ul>
+            {% for child in node.children %}
+                {{ render_tree(child) }}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>
+{% endmacro %}
+
+
+<main class="container">
+
+    <!-- ENCABEZADO -->
+
+    <header class="header">
+
+        <div>
+            <h1>Compilador</h1>
+            <p>Lexer, Parser y SDT - Grupo 05 - Equipo 02 - FI UNAM</p>
+        </div>
+
+        <div class="badge">
+            DFA + LL(1) + SDT
+        </div>
+
+    </header>
+
+
+    <!-- ENTRADA DE CÓDIGO -->
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Código fuente</h2>
+            <span>Entrada</span>
+        </div>
+
+        <form method="post">
+
+            <textarea
+                id="codigo"
+                name="codigo"
+                placeholder='int x = 10;&#10;printf(x);'
+                spellcheck="false"
+            >{{ codigo }}</textarea>
+
+            <div class="form-actions">
+
+                <button type="submit">
+                    Analizar código
+                </button>
+
             </div>
 
-            <div class="badge">
-                DFA MANUAL
+        </form>
+
+    </section>
+
+
+    {% if resultado is not none %}
+
+    <!-- RESUMEN GENERAL -->
+
+    <section class="summary">
+
+        <div class="summary-card">
+            <span class="summary-label">Tokens</span>
+            <strong>{{ total_tokens }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span class="summary-label">Errores</span>
+            <strong>{{ total_errores }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span class="summary-label">Categorías léxicas</span>
+            <strong>{{ categorias|length }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span class="summary-label">Tipos soportados</span>
+            <strong>{{ total_tokens_soportados }}</strong>
+        </div>
+
+        <div class="summary-card">
+            <span class="summary-label">Estado</span>
+            <strong>
+                {% if resultado.status == "success" %}
+                    OK
+                {% else %}
+                    ERROR
+                {% endif %}
+            </strong>
+        </div>
+
+    </section>
+
+
+    <!-- RESULTADO DEL COMPILADOR -->
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Resultado del compilador</h2>
+            <span>Estado general</span>
+        </div>
+
+        {% if resultado.status == "success" %}
+
+            <div class="success-state">
+                <strong>Compilación exitosa</strong>
+
+                {% for message in resultado.messages %}
+                    <p>{{ message }}</p>
+                {% endfor %}
             </div>
 
-        </header>
+        {% elif resultado.status == "lexical_error" %}
 
-
-        <section class="panel">
-
-            <div class="section-title">
-                <h2>Código fuente</h2>
-                <span>Entrada</span>
-            </div>
-
-            <form method="post">
-
-                <textarea
-                    id="codigo"
-                    name="codigo"
-                    placeholder='printf("This is an example");&#10;int a = 10;'
-                >{{ codigo }}</textarea>
-
-                <div class="form-actions">
-
-                    <button type="submit">
-                        Analizar código
-                    </button>
-
+            <div class="error-list">
+                <div class="error-item">
+                    <strong>Lexical error...</strong>
+                    <span>
+                        No fue posible continuar debido a errores léxicos.
+                    </span>
                 </div>
+            </div>
 
-            </form>
+        {% elif resultado.status == "syntax_error" %}
 
-        </section>
+            <div class="error-list">
+                {% for message in resultado.messages %}
+                    <div class="error-item">
+                        <strong>{{ message }}</strong>
+                    </div>
+                {% endfor %}
+            </div>
 
+            <p>
+                {{ resultado.syntax_error_message }}
+            </p>
+
+        {% elif resultado.status == "semantic_error" %}
+
+            <div class="error-list">
+                {% for message in resultado.messages %}
+                    <div class="error-item">
+                        <strong>{{ message }}</strong>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <p>
+                {{ resultado.sdt_error_message }}
+            </p>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- RESULTADOS DEL LEXER -->
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Tokens encontrados</h2>
+            <span>{{ total_tokens }} tokens</span>
+        </div>
 
         {% if tokens %}
 
-        <section class="summary">
-
-            <div class="summary-card">
-                <span class="summary-label">Tokens</span>
-                <strong>{{ total_tokens }}</strong>
-            </div>
-
-            <div class="summary-card">
-                <span class="summary-label">Errores</span>
-                <strong>{{ total_errores }}</strong>
-            </div>
-
-            <div class="summary-card">
-                <span class="summary-label">Categorías</span>
-                <strong>{{ categorias|length }}</strong>
-            </div>
-
-            <div class="summary-card">
-                <span class="summary-label">Estado</span>
-                <strong>
-                    {% if total_errores == 0 %}
-                        OK
-                    {% else %}
-                        ERROR
-                    {% endif %}
-                </strong>
-            </div>
-
-            <div class="summary-card">
-                <span class="summary-label">Tokens soportados</span>
-                 <strong>{{ total_tokens_soportados }}</strong>
-            </div>
-
-        </section>
-
-
-        <section class="panel">
-
-            <div class="section-title">
-                <h2>Tokens encontrados</h2>
-                <span>{{ total_tokens }} tokens</span>
-            </div>
-
             <div class="table-wrapper">
 
-    <table>
+                <table>
 
-        <thead>
-            <tr>
-                <th>No.</th>
-                <th>Tipo</th>
-                <th>Categoría</th>
-                <th>Lexema</th>
-                <th>Línea</th>
-                <th>Columna</th>
-            </tr>
-        </thead>
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Tipo</th>
+                            <th>Categoría</th>
+                            <th>Lexema</th>
+                            <th>Línea</th>
+                            <th>Columna</th>
+                        </tr>
+                    </thead>
 
-        <tbody>
+                    <tbody>
 
-            {% for token, categoria in tokens_con_categoria %}
+                        {% for token, categoria in tokens_con_categoria %}
 
-            <tr>
+                        <tr>
+                            <td>{{ loop.index }}</td>
 
-                <td>{{ loop.index }}</td>
+                            <td>
+                                <span class="token-type">
+                                    {{ token.tipo }}
+                                </span>
+                            </td>
 
-                <td>
-                    <span class="token-type">
-                        {{ token.tipo }}
-                    </span>
-                </td>
+                            <td>
+                                <span class="category">
+                                    {{ categoria }}
+                                </span>
+                            </td>
 
-                <td>
-                    <span class="category">
-                        {{ categoria }}
-                    </span>
-                </td>
+                            <td class="lexeme">
+                                {{ token.lexema }}
+                            </td>
 
-                <td class="lexeme">
-                    {{ token.lexema }}
-                </td>
+                            <td>{{ token.linea }}</td>
+                            <td>{{ token.columna }}</td>
+                        </tr>
 
-                <td>{{ token.linea }}</td>
+                        {% endfor %}
 
-                <td>{{ token.columna }}</td>
+                    </tbody>
 
-            </tr>
+                </table>
+
+            </div>
+
+        {% else %}
+
+            <div class="empty-state">
+                No se generaron tokens.
+            </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <!-- ERRORES LÉXICOS -->
+
+    {% if errores %}
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Errores léxicos</h2>
+        </div>
+
+        <div class="error-list">
+
+            {% for error in errores %}
+
+                <div class="error-item">
+
+                    <strong>
+                        Línea {{ error.linea }},
+                        columna {{ error.columna }}
+                    </strong>
+
+                    <span>{{ error.mensaje }}</span>
+
+                </div>
 
             {% endfor %}
 
-        </tbody>
+        </div>
 
-    </table>
+    </section>
 
-</div>
-
-        </section>
+    {% endif %}
 
 
-        <section class="panel">
+    <!-- ÁRBOL DE ANÁLISIS SINTÁCTICO -->
 
-            <div class="section-title">
-                <h2>Tabla de símbolos</h2>
-                <span>{{ symbol_table|length }} símbolos</span>
+    {% if resultado.parse_ok %}
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Árbol de análisis sintáctico</h2>
+            <span>Parse Tree</span>
+        </div>
+
+        <div class="tree-wrapper">
+
+            <ul class="tree-list">
+                {{ render_tree(resultado.parse_tree) }}
+            </ul>
+
+        </div>
+
+    </section>
+
+    {% endif %}
+
+
+    <!-- TRAZA DEL PARSER LL(1) -->
+
+    {% if resultado.parse_ok is not none %}
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Traza del Parser LL(1)</h2>
+            <span>{{ resultado.trace|length }} pasos</span>
+        </div>
+
+        {% if resultado.trace %}
+
+        <div class="table-wrapper">
+
+            <table class="trace-table">
+
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Stack</th>
+                        <th>Input</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for row in resultado.trace %}
+
+                    <tr>
+                        <td>{{ row.step }}</td>
+                        <td class="lexeme">{{ row.stack }}</td>
+                        <td class="lexeme">{{ row.input }}</td>
+                        <td>{{ row.action }}</td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+            <div class="empty-state">
+                No se generó una traza del análisis sintáctico.
             </div>
 
-            {% if symbol_table %}
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+    <!-- RESULTADOS DEL SDT -->
+
+    {% if resultado.parse_ok %}
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Resultado del análisis semántico</h2>
+            <span>SDT</span>
+        </div>
+
+        {% if resultado.sdt_ok %}
+
+            <div class="success-state">
+                SDT Verified!
+            </div>
+
+        {% else %}
+
+            <div class="error-list">
+
+                <div class="error-item">
+                    <strong>SDT error...</strong>
+
+                    <span>
+                        Línea {{ resultado.sdt_error_line }}
+                    </span>
+
+                    <span>
+                        {{ resultado.sdt_error_message }}
+                    </span>
+                </div>
+
+            </div>
+
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+    <!-- TABLA DE SÍMBOLOS -->
+
+    <section class="panel">
+
+        <div class="section-title">
+            <h2>Tabla de símbolos</h2>
+            <span>{{ symbol_table|length }} símbolos</span>
+        </div>
+
+        {% if symbol_table %}
 
             <div class="table-wrapper">
 
@@ -175,7 +442,13 @@
                     <thead>
                         <tr>
                             <th>Nombre</th>
+                            <th>Tipo</th>
+                            <th>Tamaño</th>
+                            <th>Dimensión</th>
+                            <th>Primera aparición</th>
                             <th>Línea de declaración</th>
+                            <th>Líneas de uso</th>
+                            <th>Dirección</th>
                         </tr>
                     </thead>
 
@@ -188,8 +461,34 @@
                                 {{ symbol.name }}
                             </td>
 
+                            <td>{{ symbol.type }}</td>
+                            <td>{{ symbol.size }}</td>
+                            <td>{{ symbol.dimension }}</td>
                             <td>
-                                {{ symbol.declaration_line }}
+                                {% if symbol.first_appearance_line is not none %}
+                                    {{ symbol.first_appearance_line }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if symbol.declaration_line is not none %}
+                                    {{ symbol.declaration_line }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                {% if symbol.line_usage %}
+                                    {{ symbol.line_usage|join(", ") }}
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </td>
+
+                            <td class="lexeme">
+                                {{ symbol.address }}
                             </td>
                         </tr>
 
@@ -201,107 +500,73 @@
 
             </div>
 
-            {% else %}
+        {% else %}
 
-                <div class="empty-state">
-                    No se encontraron identificadores.
-                </div>
-
-            {% endif %}
-
-        </section>
-
-
-        <section class="panel">
-
-            <div class="section-title">
-                <h2>Errores léxicos</h2>
+            <div class="empty-state">
+                No se encontraron identificadores.
             </div>
-
-            {% if errores %}
-
-                <div class="error-list">
-
-                    {% for error in errores %}
-
-                    <div class="error-item">
-
-                        <strong>
-                            Línea {{ error.linea }},
-                            columna {{ error.columna }}
-                        </strong>
-
-                        <span>
-                            {{ error.mensaje }}
-                        </span>
-
-                    </div>
-
-                    {% endfor %}
-
-                </div>
-
-            {% else %}
-
-                <div class="success-state">
-                    Sin errores léxicos.
-                </div>
-
-            {% endif %}
-
-        </section>
 
         {% endif %}
 
-       <section class="panel">
+    </section>
 
-    <div class="section-title">
-        <h2>Catálogo de tokens</h2>
-        <span>{{ total_tokens_soportados }} tokens definidos</span>
-    </div>
+    {% endif %}
 
-    <div class="token-catalog">
 
-        {% for categoria, tipos in catalogo_tokens.items() %}
+    <!-- CATÁLOGO DE TOKENS -->
 
-        <div class="catalog-group">
+    <section class="panel">
 
-            <div class="catalog-header">
-                <span>{{ categoria }}</span>
-                <strong>{{ tipos|length }}</strong>
-            </div>
+        <div class="section-title">
+            <h2>Catálogo de tokens</h2>
+            <span>{{ total_tokens_soportados }} tipos definidos</span>
+        </div>
 
-            <div class="token-chips">
+        <div class="token-catalog">
 
-                {% for tipo in tipos %}
+            {% for categoria, tipos in catalogo_tokens.items() %}
 
-                    <span class="token-chip">
-                        {{ tipo }}
-                    </span>
+                <div class="catalog-group">
 
-                {% endfor %}
+                    <div class="catalog-header">
+                        <span>{{ categoria }}</span>
+                        <strong>{{ tipos|length }}</strong>
+                    </div>
 
-            </div>
+                    <div class="token-chips">
+
+                        {% for tipo in tipos %}
+
+                            <span class="token-chip">
+                                {{ tipo }}
+                            </span>
+
+                        {% endfor %}
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
 
         </div>
 
-        {% endfor %}
+    </section>
 
-    </div>
 
-</section>
+    <!-- PIE DE PÁGINA -->
 
-        <footer>
+    <footer>
 
-            <span>Analizador Léxico · Equipo 02</span>
+        <span>Compilador · Equipo 02</span>
 
-            <span>
-                Implementación manual mediante DFA
-            </span>
+        <span>
+            Implementación manual: Lexer + Parser LL(1) + SDT
+        </span>
 
-        </footer>
+    </footer>
 
-    </main>
+</main>
 
 </body>
 </html>

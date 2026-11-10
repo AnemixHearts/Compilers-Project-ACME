@@ -636,9 +636,7 @@ footer {
     }
 }
 
-/* =========================================================
-   CATÁLOGO DE TOKENS
-   ========================================================= */
+/* CATÁLOGO DE TOKENS */
 
 .token-catalog {
     display: grid;
@@ -736,4 +734,138 @@ footer {
     .token-catalog {
         grid-template-columns: 1fr;
     }
+}
+
+
+/* RESULTADOS DEL PARSER Y SDT  */
+
+.tree-wrapper {
+    overflow-x: auto;
+    padding: 18px;
+}
+
+.tree-list,
+.tree-list ul {
+    list-style: none;
+    padding-left: 22px;
+    margin: 8px 0;
+}
+
+.tree-list ul {
+    border-left: 1px solid #d1d5db;
+    margin-left: 10px;
+}
+
+.tree-node {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 7px 10px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #f9fafb;
+    font-size: 13px;
+}
+
+.tree-token {
+    color: #2563eb;
+    font-family: monospace;
+}
+
+.tree-type {
+    color: #047857;
+    font-size: 11px;
+    font-weight: 600;
+    background: #d1fae5;
+    padding: 3px 7px;
+    border-radius: 10px;
+}
+
+.tree-node small {
+    color: #6b7280;
+}
+
+.trace-table td {
+    vertical-align: top;
+}
+
+.trace-table td:nth-child(2),
+.trace-table td:nth-child(3) {
+    min-width: 180px;
+    max-width: 320px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.trace-table td:nth-child(4) {
+    min-width: 200px;
+}
+
+.result-message {
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+
+.result-message p {
+    margin: 5px 0;
+}
+
+
+/* Mejoras de contraste del árbol sintáctico */
+
+.tree-wrapper {
+    overflow-x: auto;
+    padding: 20px;
+}
+
+.tree-list,
+.tree-list ul {
+    list-style: none;
+    padding-left: 24px;
+    margin: 8px 0;
+}
+
+.tree-list ul {
+    border-left: 1px solid #34445c;
+    margin-left: 10px;
+}
+
+.tree-node {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 4px 0;
+    padding: 8px 11px;
+    border: 1px solid #34445c;
+    border-radius: 7px;
+    background: #1a2639;
+    color: #e5edf8;
+    font-size: 13px;
+}
+
+.tree-node strong {
+    color: #e5edf8;
+}
+
+.tree-token {
+    color: #38bdf8;
+    font-family: monospace;
+}
+
+.tree-type {
+    color: #6ee7b7;
+    background: #12372f;
+    border-radius: 10px;
+    padding: 3px 7px;
+    font-size: 11px;
+}
+
+.tree-node small {
+    color: #94a3b8;
 }
