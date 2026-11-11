@@ -1,384 +1,619 @@
-\documentclass[12pt,a4paper]{article}
+% ============================================================
+%  Compilers - Parser (LL(1)) & SDT report - Team 02, Group 5
+%  Compile with pdfLaTeX (Overleaf default).
+%  Optional figures: put screenshots in a "figures/" folder
+%  (ui_syntax_error.png, ui_success.png); placeholders appear otherwise.
+% ============================================================
+\documentclass[11pt,a4paper]{article}
+
 \usepackage[utf8]{inputenc}
-\usepackage{verbatim} 
-\usepackage{geometry}
-\geometry{top=2.5cm, bottom=2.5cm, left=2.0cm, right=2.0cm}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[english]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,array,tabularx,multirow}
 \usepackage{graphicx}
-\usepackage{hyperref}
-\usepackage{listings}
 \usepackage{xcolor}
-\usepackage{amsmath,amssymb,amsfonts}
-\usepackage{booktabs}
-\usepackage{multirow}
-\usepackage{tabularx}
-\usepackage{pdfpages}
+\usepackage{enumitem}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{listings}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{fancyhdr}
+\usepackage[hidelinks]{hyperref}
 
+\captionsetup{font=small,labelfont=bf}
+\setlength{\parskip}{4pt}
+\renewcommand{\arraystretch}{1.15}
 
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Compilers --- Parser \& SDT}
+\fancyhead[R]{\small Team 02 \textbar{} Group 5}
+\fancyfoot[C]{\thepage}
 
-% Custom color configurations for listings
-\definecolor{codegreen}{rgb}{0,0.6,0}
-\definecolor{codegray}{rgb}{0.5,0.5,0.5}
-\definecolor{codepurple}{rgb}{0.58,0,0.82}
-\definecolor{backcolour}{rgb}{0.96,0.96,0.96}
-
-\lstdefinestyle{pythonstyle}{
-    backgroundcolor=\color{backcolour},    
-    commentstyle=\color{codegreen},
-    keywordstyle=\color{magenta},
-    numberstyle=\tiny\color{codegray},
-    stringstyle=\color{codepurple},
-    basicstyle=\ttfamily\small,
-    breakatwhitespace=false,          
-    breaklines=true,                  
-    captionpos=b,                    
-    keepspaces=true,                  
-    numbers=left,                    
-    numbersep=5pt,                  
-    showspaces=false,                
-    showstringspaces=false,
-    showtabs=false,                  
-    tabsize=4
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  frame=single,
+  breaklines=true,
+  columns=fullflexible,
+  backgroundcolor=\color{black!3}
 }
 
-\lstset{style=pythonstyle}
+\newcommand{\eps}{\varepsilon}
+\newcommand{\nt}[1]{\textit{#1}}
+\newcommand{\tk}[1]{\texttt{#1}}
 
 \begin{document}
     \include{portada}
     \newpage
 
-    \newpage
+\tableofcontents
+\newpage
 
+% ============================================================
 \section{Introduction}
-The compilation process is fundamentally divided into several phases, with lexical analysis acting as the critical first step. This project presents the design and implementation of a hand-crafted Lexical Analyzer (Lexer) developed in Python. The primary objective of this module is to read raw source code, discard irrelevant characters such as whitespace and comments, and tokenize the input sequence into meaningful symbols. 
+% ============================================================
+Compilation is organised as a pipeline of phases, each one consuming the output of the previous one. In the first deliverable of this project we built a hand-crafted lexical analyzer (Lexer) based on a 13-state deterministic finite automaton, able to recognise 40 token types and to recover from lexical errors through Panic Mode~\cite{lexer-report}. That component answers the question \emph{``do the lexemes belong to the language?''}. It cannot answer whether the sequence of tokens forms valid statements, nor whether those statements obey basic meaning rules such as ``a variable must be declared before it is used''.
 
-Unlike automated solutions that rely on tools like FLEX or standard regular expression libraries, this lexer is built entirely from scratch using deterministic finite automaton (DFA) state functions. It is capable of recognizing 40 distinct token types (including keywords, identifiers, operators, constants, and punctuators) while distinguishing case sensitivity. Furthermore, the lexer implements a robust ``Panic Mode'' error recovery strategy, allowing it to detect and report multiple lexical errors—such as malformed numbers or unclosed string literals—without halting execution. Ultimately, the lexer produces a clean stream of tokens that forms the foundation for subsequent syntax analysis.
-
-\section{Architecture and Project Structure}
-The architectural design of the lexer follows a modular, layered approach, ensuring separation of concerns and maintainability. The package, structured under \texttt{unam.fi.compilers.g5.02}, relies on five core components that coordinate the data flow from raw text to formatted token reports.
-
-\begin{itemize}
-	\item \textbf{Main CLI (\texttt{main.py}):} Acts as the orchestrator and entry point for the application. It utilizes \texttt{argparse} to handle command-line inputs (strings or files) and directs the overall execution flow.
-	\item \textbf{Reader (\texttt{io/reader.py}):} Responsible for input mechanism abstraction. It safely loads the source code from either direct string inputs or UTF-8 encoded files.
-	\item \textbf{Scanner (\texttt{lexer/scanner.py}):} The core engine that iterates through the input character by character. It coordinates the DFA states, manages the current line and column pointers, and registers any encountered errors using a Panic Mode recovery mechanism.
-	\item \textbf{DFA and Symbol Table (\texttt{lexer/dfa.py} \& \texttt{symbol\_table/symtab.py}):} The DFA module implements the State Pattern, using independent functions for each state to identify identifiers, numbers, strings, and operators via a ``maximal munch'' strategy. The Symbol Table applies early insertion; once a valid word is identified, it is queried to determine if it is a boolean literal, a reserved keyword, or a standard identifier.
-	\item \textbf{Writer (\texttt{io/writer.py}):} The final output layer that processes the list of valid tokens and lexical errors to generate a structured, human-readable report.
+This second deliverable extends the compiler of Team 02 with two new phases:
+\begin{itemize}[noitemsep]
+  \item a \textbf{syntax analyzer (parser)}, which validates the token stream against a context-free grammar (CFG) and builds a parse tree; and
+  \item a \textbf{semantic analyzer based on Syntax-Directed Translation (SDT)}, which traverses the tree to check declarations, uses, scopes and data types, using the symbol table shared with the Lexer.
 \end{itemize}
 
-The data flows linearly: raw characters enter the Scanner, which interacts with the DFA and Symbol Table to extract lexemes. These are converted into immutable Token objects and passed to the Writer for final presentation.
-
-\section{Theoretical Foundation}
-
-Although the primary scope of this project is the construction of a Lexical Analyzer, its true purpose is to supply a valid stream of tokens to a Parser (Syntax Analyzer). A parser evaluates these tokens against a Context-Free Grammar (CFG) to build a parsing tree, representing the syntactic structure of the program through a series of derivations and tree expansions. 
-
-To achieve efficient and deterministic parsing, top-down parsers (such as LL(1) predictive parsers) require grammar formulations that are free of both left recursion and ambiguity. If a grammar exhibits left recursion, a top-down parser can fall into an infinite loop. Similarly, if multiple production rules share common prefixes, the parser cannot determine which derivation to apply based on a single lookahead token. Therefore, grammar transformations like Left Factoring are strictly necessary to guarantee the veracity and performance of the parser relying on our lexer.
-
-\subsection{Context-Free Grammar (CFG) Proposal}
-The following CFG excerpts demonstrate the theoretical syntax for variable declarations and print statements within our custom language. The terminal symbols in this grammar directly correspond to the token categories emitted by our Lexer (e.g., \texttt{INT}, \texttt{ID}, \texttt{ASSIGN}, \texttt{INTEGER}, \texttt{SEMICOLON}).
-
-The initial, unfactored grammar proposal for variable declarations and \texttt{printf} statements is defined as follows:
-
-\begin{align*}
-	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \\
-	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{\textbf{;}} \\
-	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
-	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} 
-\end{align*}
-
-\subsection{Left Factoring Application}
-In the grammar proposed above, ambiguity arises for an LL(1) parser. Upon reading the \texttt{int} token, the parser cannot decide whether it is dealing with a variable assignment or a simple variable declaration without looking further ahead than one token. The same issue occurs with the \texttt{printf} token, as both productions begin with the common prefix \texttt{printf ( string}.
-
-To resolve this and make the grammar LL(1) compliant, we apply Left Factoring. This process extracts the common prefixes and postpones the parsing decision to a newly generated non-terminal symbol.
-
-\textbf{Factored Declaration Grammar:}
-\begin{align*}
-	\text{Stmt} &\to \text{\textbf{int}}\ \text{\textbf{id}}\ \text{Rest} \\
-	\text{Rest} &\to \text{\textbf{=}}\ \text{\textbf{num}}\ \text{\textbf{;}} \mid \text{\textbf{;}}
-\end{align*}
-
-\textbf{Factored Print Function Grammar:}
-\begin{align*}
-	\text{Stmt} &\to \text{\textbf{printf}}\ \text{\textbf{(}}\ \text{\textbf{string}}\ \text{PrintRest} \\
-	\text{PrintRest} &\to \text{\textbf{)}}\ \text{\textbf{;}} \mid \text{\textbf{,}}\ \text{ArgList}\ \text{\textbf{)}}\ \text{\textbf{;}} \\
-	\text{ArgList} &\to \text{\textbf{id}}\ \text{ArgList'} \\
-	\text{ArgList'} &\to \text{\textbf{,}}\ \text{\textbf{id}}\ \text{ArgList'} \mid \epsilon
-\end{align*}
-
-By transforming the grammar using left factoring, we guarantee that every parsing step is deterministic. Our Lexer bridges the gap by strictly enforcing token boundaries (maximal munch) and handling invalid characters beforehand, allowing the LL(1) parser to seamlessly consume the input and perform error-free derivations.
-
-\section{Lexer Implementation}
-The core implementation of the lexical analyzer resolves character recognition deterministically without relying on regular expression engines or third-party parsing tools. Instead, the scanner relies on a 13-state Deterministic Finite Automaton (DFA) defined formally as $M = (Q, \Sigma, \delta, q_0, F)$:
-\begin{itemize}
-    \item $Q = \{q_0, q_1, q_2, q_3, q_4, q_5, q_6, q_7, q_8, q_9, q_{10}, q_{11}, q_{12}\}$.
-    \item $\Sigma = L \cup D \cup \{\text{ws}, \text{\#}, =, !, <, >, +, -, *, /, (, ), \{, \}, ;, ,, ., "\} \cup \Sigma_{other}$.
-    \item $\delta: Q \times \Sigma \rightarrow Q$ is the state transition function implemented directly in Python via the State Pattern.
-    \item $q_0$ is the initial state.
-    \item $F = \{q_1, q_2, q_4, q_6, q_7, q_8, q_9, q_{10}, q_{12}\}$ is the set of valid accepting states.
-\end{itemize}
-
-Multi-character lexemes are processed using the \textit{Maximal Munch} (longest match) strategy. When the automaton enters an accepting state, scanning continues as long as character inputs yield valid state transitions.
-
-\subsection{Input Mechanism and Coordinate Tracking}
-The input subsystem is encapsulated within \texttt{io/reader.py}. The application provides two main entry functions: \texttt{read\_string(source)} and \texttt{read\_file(filepath)}. When reading from disk, the file is loaded into memory as a UTF-8 string buffer.
-
-To ensure precise error reporting and source mapping for syntax analysis, the \texttt{Scanner} class (\texttt{lexer/scanner.py}) maintains exact character coordinates through three tracking variables:
-\begin{enumerate}
-    \item \texttt{pointer}: Absolute 0-based index referencing the current character position in the source buffer.
-    \item \texttt{line}: 1-based line counter, incremented upon encountering newline characters (\texttt{\textbackslash n}).
-    \item \texttt{column}: 1-based character position relative to the origin of the active line.
+\subsection{Objectives}
+\begin{enumerate}[noitemsep]
+  \item Receive as input the tokens produced by the Lexer (the parser never re-tokenises the source text).
+  \item Define a grammar whose productions match the token categories of the language.
+  \item Choose a parsing method, build the parse tree and define the SDT rules for semantic analysis.
+  \item Read the source from a string or a file and report the line of every error.
+  \item Distinguish the three possible outcomes: \emph{parsing error}, \emph{parsing success with SDT error}, and \emph{successful compilation}, justifying each one theoretically.
 \end{enumerate}
 
-Listing \ref{lst:scanner_loop} demonstrates the primary iteration loop implemented within \texttt{scanner.py}.
+\subsection{Scope}
+The implementation covers lexical, syntactic and semantic analysis, the symbol table update, the integration of the full flow and a web interface. It does \emph{not} generate machine code, execute the source program or optimise code.
 
-\begin{lstlisting}[language=Python, caption={Core scanning loop in \texttt{lexer/scanner.py}.}, label={lst:scanner_loop}]
-class Scanner:
-    def __init__(self, source_code: str):
-        self.source = source_code
-        self.pointer = 0
-        self.line = 1
-        self.column = 1
-        self.tokens = []
-        self.errors = []
+\subsection{Implementation approach}
+The assignment offers two options: applying only the theoretical concepts seen in class (which grants extra points), or using tools and libraries that hide the process (a ``black box'')~\cite{assignment}. Our team chose the first option. The parser and the SDT were written by hand in Python, without parser generators such as PLY, SLY, YACC or Bison. The parser uses an explicit stack, an input buffer and an LL(1) table, so that every step of the algorithm can be traced and related to the theory.
 
-    def scan_all(self):
-        while self.pointer < len(self.source):
-            char = self.source[self.pointer]
-            
-            # Skip whitespace and update positional coordinates
-            if char.isspace():
-                if char == '\n':
-                    self.line += 1
-                    self.column = 1
-                else:
-                    self.column += 1
-                self.pointer += 1
-                continue
-                
-            # Discard single-line comments starting with '#'
-            if char == '#':
-                self.consume_comment()
-                continue
-                
-            # Invoke state handler according to the initial character
-            if char.isalpha() or char == '_':
-                self.process_identifier_or_keyword()
-            elif char.isdigit():
-                self.process_numeric_literal()
-            elif char == '"':
-                self.process_string_literal()
-            else:
-                self.process_operator_or_punctuation()
+\subsection{Organisation of this report}
+Section~\ref{sec:theory} presents the theoretical framework. Section~\ref{sec:dev} describes the design and the implementation, applying each concept to our language. Section~\ref{sec:results} presents the results, with the theoretical argument for each output. Section~\ref{sec:conclusions} closes with conclusions and future work.
+
+% ============================================================
+\section{Theoretical Framework}
+\label{sec:theory}
+% ============================================================
+
+\subsection{Syntax analysis and context-free grammars}
+The syntax analyzer takes the stream of tokens produced by the lexical analyzer and verifies that it can be generated by the grammar of the language; as a by-product it produces a tree that represents the syntactic structure of the program~\cite{aho}. The syntax of programming languages is specified with \emph{context-free grammars}, a class of formal grammars introduced by Chomsky~\cite{chomsky}.
+
+A CFG is a 4-tuple $G=(N,\Sigma,P,S)$ where $N$ is the set of non-terminals, $\Sigma$ the set of terminals (here, the token categories emitted by the Lexer), $P$ a set of productions $A\to\alpha$ with $A\in N$ and $\alpha\in(N\cup\Sigma)^{*}$, and $S\in N$ the start symbol. A \emph{derivation} rewrites non-terminals step by step; in a \emph{leftmost derivation} the leftmost non-terminal is always the one rewritten. A \emph{parse tree} shows a derivation graphically: the root is $S$, each internal node is a non-terminal whose children are the symbols on the right-hand side of the applied production, and the leaves, read from left to right, form the input string.
+
+\subsection{Top-down parsing and LL(1) grammars}
+Parsing methods are classified as top-down (the tree is built from the root towards the leaves) and bottom-up (from the leaves towards the root; LR(0), SLR(1), CLR(1), LALR(1))~\cite{aho,cooper}. A \emph{predictive} top-down parser chooses the production to apply by looking only at the next input symbol (\emph{lookahead}), so it needs no backtracking. The class of grammars that can be parsed this way with $k=1$ symbol of lookahead is called LL(1): the first \textbf{L} stands for scanning the input from \emph{left} to right, the second \textbf{L} for producing a \emph{leftmost} derivation, and the \textbf{1} for one symbol of lookahead~\cite{lewis-stearns,knuth-topdown,rosenkrantz}.
+
+A grammar is LL(1) if, for any two distinct productions $A\to\alpha\mid\beta$:
+\begin{enumerate}[noitemsep]
+  \item $\mathrm{FIRST}(\alpha)\cap\mathrm{FIRST}(\beta)=\emptyset$;
+  \item at most one of $\alpha,\beta$ derives $\eps$; and
+  \item if $\beta\Rightarrow^{*}\eps$, then $\mathrm{FIRST}(\alpha)\cap\mathrm{FOLLOW}(A)=\emptyset$.
+\end{enumerate}
+LL(1) grammars cannot be left-recursive, ambiguous or contain common prefixes among the alternatives of a non-terminal.
+
+\subsection{Grammar transformations}
+\paragraph{Elimination of left recursion.} A production $A\to A\alpha\mid\beta$ makes a top-down parser loop forever, because expanding $A$ calls $A$ again without consuming input. It is replaced by the equivalent pair
+\[
+A\to\beta A',\qquad A'\to\alpha A'\mid\eps .
+\]
+We use this transformation to write the arithmetic, relational and logical expression levels.
+
+\paragraph{Left factoring.} When two alternatives share a prefix, $A\to\alpha\beta_1\mid\alpha\beta_2$, one lookahead symbol cannot decide between them. The common prefix is extracted:
+\[
+A\to\alpha A',\qquad A'\to\beta_1\mid\beta_2 .
+\]
+This is the transformation already used in the first deliverable~\cite{lexer-report} for the productions beginning with \tk{int} and \tk{printf}, and it is applied here to \nt{DeclStmt}, \nt{DeclRest} and \nt{ArgList}.
+
+\subsection{FIRST and FOLLOW sets}
+$\mathrm{FIRST}(\alpha)$ is the set of terminals that can begin a string derived from $\alpha$ (plus $\eps$ if $\alpha\Rightarrow^{*}\eps$). $\mathrm{FOLLOW}(A)$ is the set of terminals that can appear immediately to the right of $A$ in some sentential form (with \$ marking the end of input). They are computed with the following rules~\cite{aho}:
+\begin{itemize}[noitemsep]
+  \item If $X$ is a terminal, $\mathrm{FIRST}(X)=\{X\}$.
+  \item If $X\to\eps$, add $\eps$ to $\mathrm{FIRST}(X)$.
+  \item If $X\to Y_1Y_2\ldots Y_k$, add $\mathrm{FIRST}(Y_1)\setminus\{\eps\}$ to $\mathrm{FIRST}(X)$; if $Y_1\Rightarrow^{*}\eps$ continue with $Y_2$, and so on; add $\eps$ if all $Y_i$ derive $\eps$.
+  \item \$ $\in\mathrm{FOLLOW}(S)$.
+  \item For $A\to\alpha B\beta$, add $\mathrm{FIRST}(\beta)\setminus\{\eps\}$ to $\mathrm{FOLLOW}(B)$.
+  \item For $A\to\alpha B$, or $A\to\alpha B\beta$ with $\eps\in\mathrm{FIRST}(\beta)$, add $\mathrm{FOLLOW}(A)$ to $\mathrm{FOLLOW}(B)$.
+\end{itemize}
+
+\subsection{LL(1) parsing table and the predictive algorithm}
+The table $M[A,a]$ is filled as follows: for each production $A\to\alpha$, (i) put it in $M[A,a]$ for every terminal $a\in\mathrm{FIRST}(\alpha)$; (ii) if $\eps\in\mathrm{FIRST}(\alpha)$, put it in $M[A,b]$ for every $b\in\mathrm{FOLLOW}(A)$. A cell with two productions is a conflict (the grammar is not LL(1)); an empty cell denotes a syntax error.
+
+The table-driven parser keeps a stack (initially \$ followed by the start symbol) and an input buffer ending in \$. Let $X$ be the top of the stack and $a$ the lookahead:
+\begin{enumerate}[noitemsep]
+  \item if $X=a=\$$: \textbf{accept};
+  \item if $X$ is a terminal and $X=a$: pop $X$ and advance the input (\emph{match});
+  \item if $X$ is a terminal and $X\neq a$: \textbf{error};
+  \item if $X$ is a non-terminal and $M[X,a]=X\to Y_1\ldots Y_k$: pop $X$ and push $Y_k,\ldots,Y_1$ (so that $Y_1$ is on top);
+  \item if $M[X,a]$ is empty: \textbf{error}.
+\end{enumerate}
+Time and space are linear in the size of the input.
+
+\subsection{Syntax-Directed Translation}
+A syntax-directed definition attaches \emph{semantic rules} to the productions of a CFG, computing \emph{attributes} of the grammar symbols. An attribute is \emph{synthesized} if its value at a node depends only on the attributes of its children; it is \emph{inherited} if it depends on its parent or siblings~\cite{knuth-semantics,aho}. A \emph{syntax-directed translation scheme} embeds the semantic actions in the productions and fixes the order in which they run. A common implementation, and the one used here, is a two-step procedure: (1) the parser validates the syntax and builds the parse tree; (2) the tree is traversed in postorder (bottom-up evaluation of synthesized attributes), executing the semantic actions. Separating the two steps cleanly distinguishes a syntax failure from a semantic failure.
+
+\subsection{Symbol table and type checking}
+The \emph{symbol table} stores, for every identifier, the attributes needed by later phases (type, size, scope, line of declaration and use, memory address)~\cite{aho,cooper}. The usual operations are \texttt{Insert}, \texttt{Lookup}, \texttt{Set} and \texttt{Reset}; the latter restores the table when a block ends, implementing block scope. \emph{Type checking} verifies that each operator is applied to operands of compatible types and that the type of an expression matches the type required by its context (assignment, condition, argument). Our language uses a \emph{strict} type system with no implicit conversions.
+
+% ============================================================
+\section{Development}
+\label{sec:dev}
+% ============================================================
+
+\subsection{Selection of the parsing method}
+We selected a \textbf{predictive top-down LL(1) parser, without backtracking, implemented with an explicit stack}. The decision rests on three criteria:
+\begin{enumerate}
+  \item \textbf{Traceability for the report and the oral defence.} Recursive descent hides the derivation state in Python's call stack. With an explicit stack we can print, at every iteration, the quadruple (\emph{Step, Stack, Input, Action}), which gives exactly the theoretical argument required for each output.
+  \item \textbf{Advantage over bottom-up methods.} LR-family parsers need the canonical collection of items (closure and goto) and may show shift/reduce conflicts as the language grows. The LL(1) model works directly on FIRST and FOLLOW sets with linear time and space.
+  \item \textbf{Separation of syntax and semantics.} The two-step SDT procedure (parse tree first, semantic traversal second) lets us separate \emph{Parsing Success!} followed by \emph{SDT error...} from a syntactic failure.
+\end{enumerate}
+
+\subsection{Architecture and integration}
+The existing package \texttt{unam.fi.compilers.g5.02} was extended, preserving the Lexer and adding the new layers. The main module orchestrates the flow and a symbol table is shared by the Lexer and the SDT (Figure~\ref{fig:flow}).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw,rounded corners,minimum width=1.9cm,minimum height=0.95cm,align=center,font=\scriptsize},
+  arr/.style={-{Stealth[length=2mm]},thick},
+  node distance=0.45cm]
+\node[box] (r) {Reader\\string / file};
+\node[box,right=of r] (l) {Lexer\\DFA + tokens};
+\node[box,right=of l] (p) {Parser\\LL(1)};
+\node[box,right=of p] (t) {Parse\\tree};
+\node[box,right=of t] (s) {SDT\\semantic rules};
+\node[box,right=of s] (o) {Result\\status + UI};
+\draw[arr] (r)--(l); \draw[arr] (l)--(p); \draw[arr] (p)--(t); \draw[arr] (t)--(s); \draw[arr] (s)--(o);
+\node[draw,rounded corners,fill=black!5,minimum width=10.5cm,font=\scriptsize,below=0.9cm of $(l)!0.5!(s)$] (st) {Shared symbol table: identifiers, types, lines, memory addresses};
+\draw[arr,<->] (l.south) -- (l.south |- st.north);
+\draw[arr,<->] (s.south) -- (s.south |- st.north);
+\end{tikzpicture}
+\caption{Logical flow from reading the source to presenting the results.}
+\label{fig:flow}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Module} & \textbf{Responsibility}\\
+\midrule
+\texttt{main.py} & Orchestrates Reader $\to$ Scanner $\to$ Parser $\to$ SDT. Keeps the lexical-only functions and adds \texttt{run\_compiler()} and \texttt{run\_compiler\_from\_file()}.\\
+\texttt{io/reader.py}, \texttt{io/writer.py} & Reading of strings/files and report generation.\\
+\texttt{lexer/dfa.py}, \texttt{lexer/scanner.py} & Manual lexeme recognition, positions and errors (reused from deliverable 1).\\
+\texttt{parser/grammar.py} & Productions, FIRST/FOLLOW computation and predictive table.\\
+\texttt{parser/ll1\_parser.py} & LL(1) stack, input buffer, terminal matching, tree construction and trace.\\
+\texttt{models/ast\_node.py} & Tree node: symbol, token, children, synthesized type and line.\\
+\texttt{sdt/analyzer.py} & Tree traversal and semantic checks.\\
+\texttt{symbol\_table/symtab.py} & Identifiers and attributes: type, size, dimension, lines, address, declaration state.\\
+\texttt{web/app.py}, templates, static & Web interface that presents the compilation results.\\
+\bottomrule
+\end{tabularx}
+\caption{Module organisation.}
+\end{table}
+
+\paragraph{Execution flow.}
+(1) The Reader obtains the source. (2) The Scanner forms the lexemes, generates tokens and records lexical errors; identifiers are inserted early in the symbol table with pending attributes. (3) The parser receives the tokens, appends the end-of-input marker \$, consults the table and builds the parse tree. (4) Only if the parser finishes successfully, the SDT traverses the tree validating declarations, uses, types and statement rules. (5) \texttt{main.py} gathers state, messages, tokens, tree, trace and symbol table, which the web application displays.
+
+\subsection{Input: tokens from the Lexer}
+The parser consumes the token list of the Lexer, whose 40 internal types are grouped for presentation into five categories (keyword, identifier, operator, constant, punctuation)~\cite{lexer-report}. For the lookahead decision the parser uses the token type or, for keywords, operators and punctuators, the specific lexeme (\tk{int}, \tk{if}, \tk{;}, \tk{==}, \dots). The terminal \textbf{id} denotes an identifier token, \textbf{const} denotes \texttt{INTEGER} or \texttt{REAL\_NUMBER}, and \textbf{lit} denotes \texttt{BOOL\_LITERAL} (\tk{True}, \tk{False}) or \texttt{STRING\_LITERAL}.
+
+The end-of-input marker \$ is a synthetic token appended to the buffer; it is not part of the catalogue of 40 lexical tokens. The grammar was adapted to the real Lexer: identifiers are plain names such as \tk{x}, and the logical operators are the words \tk{and}, \tk{or} and \tk{not}.
+
+\subsection{Context-free grammar}
+\label{sec:grammar}
+Toward a deterministic grammar, we applied left-recursion elimination (expression levels) and left factoring (declarations, calls and optional parts). Statement bodies of control structures are delimited by braces, \tk{\{ StmtList \}}, which avoids the classic dangling-else ambiguity, and every simple statement requires a terminating semicolon. The resulting grammar has 24 rules (Table~\ref{tab:grammar}); expression levels encode operator precedence, from lowest to highest: logical, relational/equality, additive, multiplicative, unary \tk{not} and primary factors.
+
+\begin{longtable}{@{}rl@{}}
+\caption{Final CFG (24 rules). Terminals in \texttt{typewriter}.}\label{tab:grammar}\\
+\toprule
+\textbf{\#} & \textbf{Production}\\
+\midrule
+\endfirsthead
+\toprule \textbf{\#} & \textbf{Production}\\ \midrule
+\endhead
+\bottomrule
+\endfoot
+\multicolumn{2}{@{}l}{\textit{A. Program structure and statements}}\\
+1 & $\nt{Program}\to\nt{StmtList}$\\
+2 & $\nt{StmtList}\to\nt{Stmt}\ \nt{StmtList}\mid\eps$\\
+3 & $\nt{Stmt}\to\nt{DeclStmt}\mid\nt{AssignStmt}\mid\nt{PrintStmt}\mid\nt{IfStmt}\mid\nt{WhileStmt}\mid\nt{ForStmt}$\\
+4 & $\nt{DeclStmt}\to\nt{Type}\ \tk{id}\ \nt{DeclRest}\ \tk{;}$\\
+5 & $\nt{DeclRest}\to\tk{=}\ \nt{E}\mid\eps$\\
+6 & $\nt{AssignStmt}\to\tk{id}\ \tk{=}\ \nt{E}\ \tk{;}$\\
+7 & $\nt{PrintStmt}\to\tk{printf}\ \tk{(}\ \nt{E}\ \nt{ArgList}\ \tk{)}\ \tk{;}$\\
+8 & $\nt{ArgList}\to\tk{,}\ \nt{E}\ \nt{ArgList}\mid\eps$\\
+9 & $\nt{IfStmt}\to\tk{if}\ \tk{(}\ \nt{E}\ \tk{)}\ \tk{\{}\ \nt{StmtList}\ \tk{\}}\ \nt{ElsePart}$\\
+10 & $\nt{ElsePart}\to\tk{else}\ \tk{\{}\ \nt{StmtList}\ \tk{\}}\mid\eps$\\
+11 & $\nt{WhileStmt}\to\tk{while}\ \tk{(}\ \nt{E}\ \tk{)}\ \tk{\{}\ \nt{StmtList}\ \tk{\}}$\\
+12 & $\nt{ForStmt}\to\tk{for}\ \tk{(}\ \nt{ForInit}\ \tk{;}\ \nt{E}\ \tk{;}\ \nt{ForUpdate}\ \tk{)}\ \tk{\{}\ \nt{StmtList}\ \tk{\}}$\\
+13 & $\nt{ForInit}\to\nt{Type}\ \tk{id}\ \tk{=}\ \nt{E}\mid\tk{id}\ \tk{=}\ \nt{E}$\\
+14 & $\nt{ForUpdate}\to\tk{id}\ \tk{=}\ \nt{E}$\\
+15 & $\nt{Type}\to\tk{int}\mid\tk{real}\mid\tk{string}\mid\tk{bool}$\\
+\midrule
+\multicolumn{2}{@{}l}{\textit{B. Expressions without left recursion}}\\
+16 & $\nt{E}\to\nt{R}\ \nt{E}'$\\
+17 & $\nt{E}'\to\nt{OpLog}\ \nt{R}\ \nt{E}'\mid\eps,\quad \nt{OpLog}\in\{\tk{and},\tk{or}\}$\\
+18 & $\nt{R}\to\nt{A}\ \nt{R}'$\\
+19 & $\nt{R}'\to\nt{OpRel}\ \nt{A}\ \nt{R}'\mid\eps,\quad \nt{OpRel}\in\{\tk{<},\tk{>},\tk{<=},\tk{>=},\tk{==},\tk{!=}\}$\\
+20 & $\nt{A}\to\nt{T}\ \nt{A}'$\\
+21 & $\nt{A}'\to\nt{OpAdit}\ \nt{T}\ \nt{A}'\mid\eps,\quad \nt{OpAdit}\in\{\tk{+},\tk{-}\}$\\
+22 & $\nt{T}\to\nt{F}\ \nt{T}'$\\
+23 & $\nt{T}'\to\nt{OpMult}\ \nt{F}\ \nt{T}'\mid\eps,\quad \nt{OpMult}\in\{\tk{*},\tk{/}\}$\\
+24 & $\nt{F}\to\tk{(}\ \nt{E}\ \tk{)}\mid\tk{not}\ \nt{F}\mid\tk{id}\mid\tk{const}\mid\tk{lit}$\\
+\end{longtable}
+
+\subsection{FIRST and FOLLOW sets}
+Applying the rules of Section~2.4 to the grammar of Table~\ref{tab:grammar} gives the sets of Table~\ref{tab:firstfollow}. Let $\mathcal{T}=\{\tk{int},\tk{real},\tk{string},\tk{bool}\}$ and $\mathrm{F}_S=\mathrm{FIRST}(\nt{Stmt})=\mathcal{T}\cup\{\tk{id},\tk{printf},\tk{if},\tk{while},\tk{for}\}$; let $\mathrm{F}_E=\{\tk{(},\tk{not},\tk{id},\tk{const},\tk{lit}\}$.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Non-terminal} & \textbf{FIRST} & \textbf{FOLLOW}\\
+\midrule
+\nt{Program} & $\mathrm{F}_S\cup\{\eps\}$ & $\{\$\}$\\
+\nt{StmtList} & $\mathrm{F}_S\cup\{\eps\}$ & $\{\tk{\}},\$\}$\\
+\nt{Stmt}, \nt{DeclStmt}, \nt{AssignStmt}, \nt{PrintStmt}, \nt{IfStmt}, \nt{WhileStmt}, \nt{ForStmt} & each its own initial terminals (\nt{Stmt}: $\mathrm{F}_S$) & $\mathrm{F}_S\cup\{\tk{\}},\$\}$\\
+\nt{DeclRest} & $\{\tk{=},\eps\}$ & $\{\tk{;}\}$\\
+\nt{ArgList} & $\{\tk{,},\eps\}$ & $\{\tk{)}\}$\\
+\nt{ElsePart} & $\{\tk{else},\eps\}$ & $\mathrm{F}_S\cup\{\tk{\}},\$\}$\\
+\nt{ForInit} & $\mathcal{T}\cup\{\tk{id}\}$ & $\{\tk{;}\}$\\
+\nt{ForUpdate} & $\{\tk{id}\}$ & $\{\tk{)}\}$\\
+\nt{Type} & $\mathcal{T}$ & $\{\tk{id}\}$\\
+\nt{E}, \nt{R}, \nt{A}, \nt{T}, \nt{F} & $\mathrm{F}_E$ & see below\\
+$\nt{E}'$ & $\{\tk{and},\tk{or},\eps\}$ & $\{\tk{;},\tk{)},\tk{,}\}$\\
+$\nt{R}'$ & $\{\tk{<},\tk{>},\tk{<=},\tk{>=},\tk{==},\tk{!=},\eps\}$ & $\{\tk{and},\tk{or},\tk{;},\tk{)},\tk{,}\}$\\
+$\nt{A}'$ & $\{\tk{+},\tk{-},\eps\}$ & $\mathrm{FOLLOW}(\nt{R}')\cup\{\mathrm{OpRel}\}$\\
+$\nt{T}'$ & $\{\tk{*},\tk{/},\eps\}$ & $\mathrm{FOLLOW}(\nt{A}')\cup\{\tk{+},\tk{-}\}$\\
+\bottomrule
+\end{tabularx}
+\caption{FIRST and FOLLOW sets. For expressions: $\mathrm{FOLLOW}(\nt{E})=\mathrm{FOLLOW}(\nt{E}')=\{\tk{;},\tk{)},\tk{,}\}$; $\mathrm{FOLLOW}(\nt{R})$ adds $\{\tk{and},\tk{or}\}$; $\mathrm{FOLLOW}(\nt{A})$ adds the relational operators; $\mathrm{FOLLOW}(\nt{T})$ adds $\{\tk{+},\tk{-}\}$; $\mathrm{FOLLOW}(\nt{F})$ adds $\{\tk{*},\tk{/}\}$.}
+\label{tab:firstfollow}
+\end{table}
+
+\subsection{LL(1) parsing table}
+Following the construction rules of Section~2.5, Table~\ref{tab:ll1table} lists the production selected for each lookahead. No terminal appears in two cells of the same row: the grammar has no conflicts and is strictly LL(1). Remarkably, \tk{else} is not in $\mathrm{FOLLOW}(\nt{Stmt})$, so $\nt{ElsePart}\to\eps$ never competes with $\nt{ElsePart}\to\tk{else}\ldots$. Any combination not listed is an empty cell, i.e. a syntax error. The table is generated automatically by \texttt{parser/grammar.py}.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}lXX@{}}
+\toprule
+\textbf{Non-terminal} & \textbf{Production selected} & \textbf{Lookahead terminals}\\
+\midrule
+\nt{Program} & $\to\nt{StmtList}$ & $\mathrm{F}_S\cup\{\$\}$\\
+\nt{StmtList} & $\to\nt{Stmt}\ \nt{StmtList}$ & $\mathrm{F}_S$\\
+ & $\to\eps$ & $\tk{\}},\$$\\
+\nt{Stmt} & $\to\nt{DeclStmt}$ / \nt{AssignStmt} / \nt{PrintStmt} / \nt{IfStmt} / \nt{WhileStmt} / \nt{ForStmt} & $\mathcal{T}$ / \tk{id} / \tk{printf} / \tk{if} / \tk{while} / \tk{for}\\
+\nt{DeclRest} & $\to\tk{=}\ \nt{E}$ \quad | \quad $\to\eps$ & \tk{=} \quad | \quad \tk{;}\\
+\nt{ArgList} & $\to\tk{,}\ \nt{E}\ \nt{ArgList}$ \quad | \quad $\to\eps$ & \tk{,} \quad | \quad \tk{)}\\
+\nt{ElsePart} & $\to\tk{else}\ \tk{\{}\nt{StmtList}\tk{\}}$ \quad | \quad $\to\eps$ & \tk{else} \quad | \quad $\mathrm{F}_S\cup\{\tk{\}},\$\}$\\
+\nt{ForInit} & $\to\nt{Type}\ \tk{id}\ \tk{=}\ \nt{E}$ \quad | \quad $\to\tk{id}\ \tk{=}\ \nt{E}$ & $\mathcal{T}$ \quad | \quad \tk{id}\\
+\nt{Type} & $\to\tk{int}$ / \tk{real} / \tk{string} / \tk{bool} & the corresponding keyword\\
+\nt{E}, \nt{R}, \nt{A}, \nt{T} & $\to\nt{R}\,\nt{E}'$, $\nt{A}\,\nt{R}'$, $\nt{T}\,\nt{A}'$, $\nt{F}\,\nt{T}'$ & $\mathrm{F}_E$\\
+$\nt{E}'$ & $\to\nt{OpLog}\ \nt{R}\ \nt{E}'$ \quad | \quad $\to\eps$ & \tk{and}, \tk{or} \quad | \quad \tk{;}, \tk{)}, \tk{,}\\
+$\nt{R}'$ & $\to\nt{OpRel}\ \nt{A}\ \nt{R}'$ \quad | \quad $\to\eps$ & relational ops. \quad | \quad \tk{and}, \tk{or}, \tk{;}, \tk{)}, \tk{,}\\
+$\nt{A}'$ & $\to\nt{OpAdit}\ \nt{T}\ \nt{A}'$ \quad | \quad $\to\eps$ & \tk{+}, \tk{-} \quad | \quad FOLLOW($\nt{A}'$)\\
+$\nt{T}'$ & $\to\nt{OpMult}\ \nt{F}\ \nt{T}'$ \quad | \quad $\to\eps$ & \tk{*}, \tk{/} \quad | \quad FOLLOW($\nt{T}'$)\\
+\nt{F} & $\to\tk{(}\ \nt{E}\ \tk{)}$ / \tk{not}\ \nt{F} / \tk{id} / \tk{const} / \tk{lit} & \tk{(} / \tk{not} / \tk{id} / \tk{const} / \tk{lit}\\
+\bottomrule
+\end{tabularx}
+\caption{Compact representation of the LL(1) parsing table $M[A,a]$ (\nt{IfStmt}, \nt{WhileStmt}, \nt{ForStmt}, \nt{DeclStmt}, \nt{AssignStmt} and \nt{PrintStmt} have a single production, selected on their first terminal).}
+\label{tab:ll1table}
+\end{table}
+
+\subsection{Predictive parser implementation}
+\texttt{parser/ll1\_parser.py} implements the algorithm of Section~2.5. Initially the stack holds the end marker \$ and the start symbol \nt{Program}, and a synthetic token with lexeme \$ is appended to the input buffer. At each iteration the top of the stack is compared with the lookahead: matching terminals consume input; for a non-terminal, the production in $M[X,a]$ is selected, its child nodes are created and pushed in reverse order so that they are processed from left to right. $\eps$-productions are applied through the FOLLOW sets.
+
+The parser records a \textbf{trace} of four fields per step (\emph{Step, Stack, Input, Action}), including expansions, matches, $\eps$ applications and the exact point where an empty cell or a terminal mismatch is detected. This trace is the evidence of the algorithm, not only a success/error message.
+
+\subsection{Parse tree}
+Each tree node (\texttt{ASTNode}) keeps the grammar symbol, the token when the node is a terminal, the ordered list of children, the associated line, and the \texttt{data\_type} attribute synthesized later by the SDT. The tree preserves the structure of the derivation and is the only input of the semantic analyzer.
+
+\subsection{Symbol table}
+The table is shared by the Scanner and the SDT. The Lexer inserts every identifier it finds, but initially does not know whether it belongs to a valid declaration; the SDT completes the attributes when it confirms a declaration or detects a use.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{Attribute} & \textbf{Meaning}\\
+\midrule
+\texttt{name} & Identifier name (key).\\
+\texttt{type} & \texttt{int}, \texttt{real}, \texttt{bool} or \texttt{string}; starts as \texttt{TBD}.\\
+\texttt{size} & Size in bytes; starts as \texttt{TBD}.\\
+\texttt{dimension} & 0 for scalar variables.\\
+\texttt{first\_appearance\_line} & First line where the Lexer found the identifier.\\
+\texttt{declaration\_line} & Line of the declaration confirmed by the SDT; starts as \texttt{None}.\\
+\texttt{line\_usage} & List of lines where the identifier is used.\\
+\texttt{address} & Address assigned after a declaration is confirmed.\\
+\bottomrule
+\end{tabularx}
+\caption{Symbol table entry attributes.}
+\end{table}
+
+Sizes are: \texttt{int} 4 bytes, \texttt{real} 8, \texttt{bool} 1 and \texttt{string} 16. The base address is \texttt{0x1000}; when a declaration is confirmed, the entry receives the current address and the next free address advances by the size of the type (e.g.\ \texttt{0x1000}, then \texttt{0x1004} after an \texttt{int}).
+
+\paragraph{Design correction.} Testing revealed that the first version stored the first line where an identifier appeared in \texttt{declaration\_line}. An identifier only used in an assignment, or whose declaration had been rejected, could therefore look as if it had been declared. The two data were separated: \texttt{first\_appearance\_line} is a lexical fact, while \texttt{declaration\_line} is only set when the SDT confirms the declaration. This also keeps a single entry per identifier and prevents a duplicate declaration from overwriting the first valid one.
+
+\subsection{Semantic analysis: SDT scheme}
+\label{sec:sdt}
+Semantic analysis runs only if the parser accepted the whole input. The analyzer traverses the parse tree in postorder, synthesizing the type of expressions and applying the rules of Table~\ref{tab:sdtrules}. Any violation synthesizes the attribute \texttt{error\_type} and triggers \texttt{SDT error...} with the line.
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{3.6cm}X@{}}
+\toprule
+\textbf{Production} & \textbf{Semantic rule}\\
+\midrule
+$\nt{DeclStmt}\to\nt{Type}\ \tk{id}\ \nt{DeclRest}\ \tk{;}$ & \texttt{Lookup(id)}: if already declared, error ``redeclared variable''. If there is an initialiser, its type must equal \texttt{Type}; otherwise error. Only then \texttt{Set(id, type, size, dimension=0)} and the address are confirmed.\\
+$\nt{AssignStmt}\to\tk{id}\ \tk{=}\ \nt{E}\ \tk{;}$ & \texttt{Lookup(id)}: if type is \texttt{TBD} (or the variable is absent), error ``undeclared variable''; if $\texttt{id.type}\neq\texttt{E.type}$, error ``type mismatch in assignment''; else record the line of use.\\
+$\nt{PrintStmt}\to\tk{printf}\ \tk{(}\ \nt{E}\ \nt{ArgList}\ \tk{)}\ \tk{;}$ & Evaluate the main expression and every extra argument; if any yields \texttt{error\_type}, error ``invalid printf argument''.\\
+$\nt{IfStmt}$, $\nt{WhileStmt}$, $\nt{ForStmt}$ & The condition \nt{E} must have type \texttt{bool}; otherwise error. The bodies (and \nt{ForInit}, \nt{ForUpdate}, \nt{ElsePart}) are verified recursively.\\
+$\nt{E},\nt{R},\nt{A},\nt{T}$ and primed forms & Combine the operand types following Table~\ref{tab:typematrix}; an invalid combination yields \texttt{error\_type}.\\
+$\nt{F}\to\tk{(}\nt{E}\tk{)}$ & $\texttt{F.type}=\texttt{E.type}$.\\
+$\nt{F}\to\tk{not}\ \nt{F}$ & Requires \texttt{bool}; result \texttt{bool}.\\
+$\nt{F}\to\tk{const}\mid\tk{lit}\mid\tk{id}$ & \texttt{const}: \texttt{int} or \texttt{real} (if it contains a point); \texttt{lit}: \texttt{bool} or \texttt{string}; \texttt{id}: \texttt{Lookup(id).type} (error if \texttt{TBD}) and record the line of use.\\
+Blocks \tk{\{ \dots\ \}} & Variables declared inside a block are removed (\texttt{Reset}) when the block ends; outer-scope variables remain visible.\\
+\bottomrule
+\end{tabularx}
+\caption{SDT rules for statements and expressions.}
+\label{tab:sdtrules}
+\end{table}
+
+\paragraph{Type compatibility.} The language is strictly typed over four primitive types; no automatic conversion between \texttt{int} and \texttt{real} is applied (Table~\ref{tab:typematrix}). Parenthesised expressions keep the type of the inner expression, and relational operators over numeric values produce \texttt{bool}.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lXXXXX@{}}
+\toprule
+\textbf{Type} & \textbf{Arithmetic} (\tk{+ - * /}) & \textbf{Relational} (\tk{< > <= >=}) & \textbf{Equality} (\tk{== !=}) & \textbf{Logical} (\tk{and or not}) & \textbf{Assignment}\\
+\midrule
+\texttt{int} & int $\to$ int & int $\to$ bool & int $\to$ bool & forbidden & only \texttt{int}\\
+\texttt{real} & real $\to$ real & real $\to$ bool & real $\to$ bool & forbidden & only \texttt{real}\\
+\texttt{string} & only \tk{+}: string $\to$ string & forbidden & string $\to$ bool & forbidden & only \texttt{string}\\
+\texttt{bool} & forbidden & forbidden & bool $\to$ bool & bool $\to$ bool & only \texttt{bool}\\
+\bottomrule
+\end{tabularx}
+\caption{Semantic type compatibility matrix.}
+\label{tab:typematrix}
+\end{table}
+
+\subsection{Control of outcomes}
+The integrated flow (\texttt{run\_compiler(source)}) distinguishes four states (Table~\ref{tab:states}).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+\textbf{State} & \textbf{Behaviour}\\
+\midrule
+Lexical error & The Scanner records errors; the integrated flow stops before running the parser.\\
+Syntax error & The parser rejects the input and reports the line (\texttt{Parsing error...}, \texttt{error in line n}). The SDT is not executed, so no semantic message is shown.\\
+Semantic error & The parser accepts (\texttt{Parsing Success!}) but the SDT reports \texttt{SDT error...} and the line.\\
+Successful compilation & Parser and SDT finish: \texttt{Parsing Success!} and \texttt{SDT Verified!}.\\
+\bottomrule
+\end{tabularx}
+\caption{Outcome states of the integrated compiler.}
+\label{tab:states}
+\end{table}
+
+\subsection{Web interface}
+The web application (Flask) shows the editor with the source code, a summary (tokens, errors, lexical categories, supported types, overall status), the token table (type, category, lexeme, line, column), the parse tree, the LL(1) trace, the SDT result and the symbol table with first-appearance and declaration columns (a dash when no declaration was confirmed), plus the catalogue of the 40 token types. It is run as a module to keep relative imports working:
+\begin{lstlisting}
+cd <project>/Lexer
+python -m develop.web.app      # then open http://127.0.0.1:5000
 \end{lstlisting}
 
-\subsection{Token Classification and Transition Logic}
-The lexer recognizes 40 internal token types. To meet output formatting requirements, the writer layer (\texttt{io/writer.py}) maps these 40 internal types into 5 human-readable categories: \texttt{keyword}, \texttt{identifier}, \texttt{operator}, \texttt{constant}, and \texttt{punctuation}.
+% ============================================================
+\section{Results}
+\label{sec:results}
+% ============================================================
 
-Table \ref{tab:dfa_transitions} details the complete state transition matrix governing the automaton.
+\subsection{Theoretical justification of each output}
 
-\begin{table}[htbp]
+\subsubsection{Output 1: \texttt{Parsing Success!} and \texttt{SDT Verified!}}
+\textbf{Input:} \texttt{int x = 10;} \quad \textbf{Tokens:} \texttt{KW(int)}, \texttt{ID(x)}, \texttt{ASSIGN}, \texttt{INTEGER(10)}, \texttt{SEMICOLON}, \$.
+
+Table~\ref{tab:trace} shows the condensed trace. The parser reaches the configuration (stack = \$, input = \$), which by the algorithm of Section~2.5 guarantees that the token string belongs to $L(G)$. The SDT then traverses the tree in postorder: the constant \texttt{10} synthesizes \texttt{int}, the type propagates up to \nt{E} through \nt{F}, \nt{T}, \nt{A}, \nt{R}; in \nt{DeclStmt}, \texttt{Lookup(x)} confirms the entry is still \texttt{TBD} (not redeclared) and \texttt{Type}=\texttt{int}=\texttt{E.type}, so \texttt{Set(x, int, 4, 0)} assigns address \texttt{0x1000}.
+
+\begin{table}[H]
 \centering
-\caption{State Transition Matrix for the Lexer DFA ($q_0 \dots q_{12}$).}
-\label{tab:dfa_transitions}
-\small
-\begin{tabularx}{\textwidth}{c c c X}
+\scriptsize
+\begin{tabularx}{\textwidth}{@{}rX>{\raggedright\arraybackslash}p{3.6cm}X@{}}
 \toprule
-\textbf{State} & \textbf{Input Character} & \textbf{Next State} & \textbf{Action / Token Emitted} \\
+\textbf{Step} & \textbf{Stack (base $\to$ top)} & \textbf{Input} & \textbf{Action}\\
 \midrule
-$q_0$ & Letter / \texttt{\_} & $q_1$ & Begin identifier or keyword scan \\
-$q_0$ & Digit & $q_2$ & Begin integer literal scan \\
-$q_0$ & \texttt{"} & $q_5$ & Begin string literal scan \\
-$q_0$ & \texttt{\#} & $q_{11}$ & Single-line comment (discarded) \\
-$q_0$ & \texttt{=}, \texttt{!}, \texttt{<}, \texttt{>} & $q_7, q_8, q_9, q_{10}$ & Multi-character operator evaluation \\
-$q_0$ & \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, \texttt{(}, \texttt{)}, \texttt{\{}, \texttt{\}}, \texttt{;}, \texttt{,} & $q_{12}$ & Emit single-character operator / punctuation \\
-$q_0$ & Whitespace & $q_0$ & Advance coordinates; skip \\
-$q_0$ & Unrecognized char & --- & Trigger Panic Mode Recovery \\
-\midrule
-$q_1$ & Alphanumeric / \texttt{\_} & $q_1$ & Continue word accumulation \\
-$q_1$ & Non-alphanumeric & $q_{12}$ & SymbolTable lookup $\rightarrow$ Emit Keyword or \texttt{ID} \\
-\midrule
-$q_2$ & Digit & $q_2$ & Continue digit accumulation \\
-$q_2$ & \texttt{.} & $q_3$ & Transition to fractional part \\
-$q_2$ & Non-digit / Non-\texttt{.} & $q_{12}$ & Emit \texttt{INTEGER} \\
-\midrule
-$q_3$ & Digit & $q_4$ & Accumulate required fractional digit \\
-$q_3$ & Non-digit & --- & Error: Malformed real number (e.g., \texttt{3.}) \\
-\midrule
-$q_4$ & Digit & $q_4$ & Continue fractional digit accumulation \\
-$q_4$ & Non-digit & $q_{12}$ & Emit \texttt{REAL\_NUMBER} \\
-\midrule
-$q_5$ & \texttt{"} & $q_6$ & Complete string literal \\
-$q_5$ & Char (not \texttt{"} or \texttt{\textbackslash n}) & $q_5$ & Accumulate string body \\
-$q_5$ & EOF / \texttt{\textbackslash n} & --- & Error: Unclosed string literal \\
-\midrule
-$q_6$ & Any & $q_{12}$ & Emit \texttt{STRING\_LITERAL} \\
-\midrule
-$q_7$ & \texttt{=} & $q_{12}$ & Emit \texttt{EQ} (\texttt{==}) \\
-$q_7$ & Other & $q_{12}$ & Emit \texttt{ASSIGN} (\texttt{=}) \\
-\midrule
-$q_8$ & \texttt{=} & $q_{12}$ & Emit \texttt{NEQ} (\texttt{!=}) \\
-$q_8$ & Other & --- & Error: Standalone invalid operator \texttt{!} \\
-\midrule
-$q_9$ & \texttt{=} & $q_{12}$ & Emit \texttt{LEQ} (\texttt{<=}) \\
-$q_9$ & Other & $q_{12}$ & Emit \texttt{LT} (\texttt{<}) \\
-\midrule
-$q_{10}$ & \texttt{=} & $q_{12}$ & Emit \texttt{GEQ} (\texttt{>=}) \\
-$q_{10}$ & Other & $q_{12}$ & Emit \texttt{GT} (\texttt{>}) \\
-\midrule
-$q_{11}$ & \texttt{\textbackslash n} & $q_0$ & End comment; resume scanning \\
-$q_{11}$ & Non-\texttt{\textbackslash n} & $q_{11}$ & Discard comment content \\
-\midrule
-$q_{12}$ & --- & $q_0$ & Reset state for next token \\
+1 & \$ \nt{Program} & \tk{int x = 10 ; \$} & $\nt{Program}\to\nt{StmtList}$\\
+2 & \$ \nt{StmtList} & \tk{int x = 10 ; \$} & $\nt{StmtList}\to\nt{Stmt}\ \nt{StmtList}$\\
+3 & \$ \nt{StmtList} \nt{Stmt} & \tk{int x = 10 ; \$} & $\nt{Stmt}\to\nt{DeclStmt}$\\
+4 & \$ \nt{StmtList} \nt{DeclStmt} & \tk{int x = 10 ; \$} & $\nt{DeclStmt}\to\nt{Type}\ \tk{id}\ \nt{DeclRest}\ \tk{;}$\\
+5 & \$ \nt{StmtList} ; \nt{DeclRest} id \nt{Type} & \tk{int x = 10 ; \$} & $\nt{Type}\to\tk{int}$, then match \tk{int}\\
+6 & \$ \nt{StmtList} ; \nt{DeclRest} id & \tk{x = 10 ; \$} & match \tk{id}\\
+7 & \$ \nt{StmtList} ; \nt{DeclRest} & \tk{= 10 ; \$} & $\nt{DeclRest}\to\tk{=}\ \nt{E}$, then match \tk{=}\\
+8 & \$ \nt{StmtList} ; \nt{E} & \tk{10 ; \$} & $\nt{E}\Rightarrow\nt{R}\Rightarrow\nt{A}\Rightarrow\nt{T}\Rightarrow\nt{F}$; $\nt{F}\to\tk{const}$ (via $M[\cdot,\tk{const}]$)\\
+9 & \$ \nt{StmtList} ; \nt{E}$'$ \nt{R}$'$ \nt{A}$'$ \nt{T}$'$ const & \tk{10 ; \$} & match \tk{const}\\
+10 & \$ \nt{StmtList} ; \nt{E}$'$ \nt{R}$'$ \nt{A}$'$ \nt{T}$'$ & \tk{; \$} & $\eps$-rules for $\nt{T}',\nt{A}',\nt{R}',\nt{E}'$ ($\tk{;}\in$ FOLLOW)\\
+11 & \$ \nt{StmtList} ; & \tk{; \$} & match \tk{;}\\
+12 & \$ \nt{StmtList} & \$ & $\nt{StmtList}\to\eps$\\
+13 & \$ & \$ & \textbf{Parsing Success!}\\
 \bottomrule
 \end{tabularx}
+\caption{Condensed LL(1) trace for \texttt{int x = 10;}.}
+\label{tab:trace}
 \end{table}
 
-\subsection{Complete 40-Token Catalog}
-The lexer recognizes 40 distinct token types mapped into 5 functional display categories. Table \ref{tab:40_tokens} enumerates the complete specification of supported tokens.
+\begin{lstlisting}
+Parsing Success!
+SDT Verified!
+\end{lstlisting}
 
-\begin{table}[htbp]
+\subsubsection{Output 2: \texttt{Parsing Success!} and \texttt{SDT error...}}
+\textbf{Inputs:} \texttt{int x = "diez";} \quad \texttt{x = 5;} \quad \texttt{int x = 10; x = "hola";} \quad \texttt{if (10 + 20) \{ x = 1; \}}.
+
+All of them satisfy 100\% of the syntactic rules of the CFG: in the first one, \texttt{"diez"} is a valid \nt{F} (\tk{lit}); in the second, an assignment with an identifier is a valid \nt{AssignStmt}; in the last one, \texttt{10 + 20} is a valid \nt{E} between parentheses followed by a braced body. Therefore the LL(1) parser empties the stack and prints \texttt{Parsing Success!}. The errors are context-dependent, so they cannot be expressed by a CFG; they are detected by the postorder traversal of the SDT: \texttt{int} $\ne$ \texttt{string} in the declaration; \texttt{x} still \texttt{TBD} in the assignment (undeclared); \texttt{int} $\ne$ \texttt{string} in the assignment; and the \texttt{IfStmt} rule requires \texttt{E.type = bool} but \texttt{10 + 20} synthesizes \texttt{int}.
+
+\begin{lstlisting}
+Parsing Success!
+SDT error...
+error in line 1
+\end{lstlisting}
+
+\subsubsection{Output 3: \texttt{Parsing error...}}
+\textbf{Inputs:} \texttt{int x = * 10;} \quad \texttt{int x = 10} (missing semicolon).
+
+For \texttt{int x = * 10;}, after matching \tk{=} the stack top is \nt{E} and the lookahead is \tk{*}; since $\tk{*}\notin\mathrm{FIRST}(\nt{E})$ the cell $M[\nt{E},\tk{*}]$ is empty (message \emph{no production for M[E, *]}), which is a syntax error. For \texttt{int x = 10}, the top of the stack is the terminal \tk{;} but the lookahead is \$, a terminal mismatch ($\tk{;}\neq\$$). In both cases the derivation cannot be completed, no valid tree exists and the SDT is \textbf{not} executed. The course instructions list \emph{Parsing error...} together with \emph{SDT error...} for the failing case~\cite{assignment}; our implementation prints only \texttt{Parsing error...} and the line, because semantic rules are attributes evaluated over a tree that does not exist when parsing fails (reporting a semantic error would be unjustified).
+
+\begin{lstlisting}
+Parsing error...
+error in line 1
+\end{lstlisting}
+
+\subsection{Symbol table results}
+\begin{table}[H]
 \centering
-\caption{Complete Specification of the 40 Supported Token Types.}
-\label{tab:40_tokens}
 \small
-\begin{tabularx}{\textwidth}{l l X}
+\begin{tabular}{@{}lllllll@{}}
 \toprule
-\textbf{Category} & \textbf{Internal Token ID} & \textbf{Examples / Pattern} \\
+\textbf{Input} & \textbf{Name} & \textbf{Type} & \textbf{Size} & \textbf{First app.} & \textbf{Declaration} & \textbf{Address}\\
 \midrule
-\multirow{4}{*}{\textbf{Keyword}} 
- & \texttt{PRINTF}, \texttt{PRINT} & \texttt{printf}, \texttt{print} \\
- & \texttt{INT}, \texttt{FLOAT}, \texttt{BOOL}, \texttt{STRING} & Type declarations: \texttt{int}, \texttt{float}, \texttt{bool}, \texttt{string} \\
- & \texttt{IF}, \texttt{ELSE}, \texttt{WHILE}, \texttt{FOR} & Control flow: \texttt{if}, \texttt{else}, \texttt{while}, \texttt{for} \\
- & \texttt{RETURN}, \texttt{VOID}, \texttt{TRUE}, \texttt{FALSE} & Function/literal keywords: \texttt{return}, \texttt{void}, \texttt{true}, \texttt{false} \\
-\midrule
-\textbf{Identifier} & \texttt{ID} & User variables: \texttt{x}, \texttt{counter}, \texttt{my\_var} \\
-\midrule
-\multirow{3}{*}{\textbf{Operator}} 
- & \texttt{ASSIGN}, \texttt{PLUS}, \texttt{MINUS}, \texttt{MULT}, \texttt{DIV} & \texttt{=}, \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/} \\
- & \texttt{EQ}, \texttt{NEQ}, \texttt{LT}, \texttt{LEQ}, \texttt{GT}, \texttt{GEQ} & Relational: \texttt{==}, \texttt{!=}, \texttt{<}, \texttt{<=}, \texttt{>}, \texttt{>=} \\
- & \texttt{AND}, \texttt{OR}, \texttt{NOT} & Logical: \texttt{\&\&}, \texttt{||}, \texttt{!} \\
-\midrule
-\multirow{3}{*}{\textbf{Constant}} 
- & \texttt{INTEGER} & Integer numbers: \texttt{0}, \texttt{42}, \texttt{100} \\
- & \texttt{REAL\_NUMBER} & Floating-point numbers: \texttt{3.14}, \texttt{0.001} \\
- & \texttt{STRING\_LITERAL} & Text enclosed in quotes: \texttt{"Hello World"} \\
-\midrule
-\multirow{2}{*}{\textbf{Punctuation}} 
- & \texttt{L\_PAREN}, \texttt{R\_PAREN}, \texttt{L\_BRACE}, \texttt{R\_BRACE} & Delimiters: \texttt{(}, \texttt{)}, \texttt{\{}, \texttt{\}} \\
- & \texttt{SEMICOLON}, \texttt{COMMA}, \texttt{DOT} & Separators: \texttt{;}, \texttt{,}, \texttt{.} \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsection{Symbol Table Integration}
-Alphanumeric lexemes ending in state $q_1$ are passed to \texttt{symbol\_table/symtab.py}. The lookup procedure follows a 3-step validation pipeline:
-\begin{enumerate}
-    \item Check for boolean literals (\texttt{True}, \texttt{False}). If matched, return \texttt{BOOL\_LITERAL}.
-    \item Perform a case-sensitive lookup against the 15 reserved keywords (e.g., \texttt{printf}, \texttt{print}, \texttt{int}). If matched, emit the corresponding keyword token.
-    \item Otherwise, insert the word into the \texttt{SymbolTable} and assign token type \texttt{ID}.
-\end{enumerate}
-
-\subsection{Panic Mode Error Recovery}
-When encountering illegal characters (e.g., \texttt{@}) or unexpected transitions (e.g., malformed float \texttt{3.}), Panic Mode records the error message, line, and column index in \texttt{scanner.errors}. It discards the invalid character and continues scanning from the next position without halting execution.
-
-\subsection{Web Interface Deployment (Flask Application)}
-To provide an accessible, interactive demonstration of the Lexical Analyzer, a lightweight web application was developed using Flask. The web component acts as a graphical user interface (GUI) wrapper around the core lexer modules, allowing users to input raw source code through a browser and view real-time tokenization results and error logs.
-
-The web subsystem is organized within the following directory structure:
-\begin{itemize}
-    \item \textbf{Backend Controller (\texttt{web/app.py}):} The Flask application entry point. It defines routing endpoints (e.g., \texttt{/}) that receive raw string payloads via HTTP POST requests, invoke \texttt{Scanner.scan\_all()}, and process outputs through \texttt{io/writer.py}.
-    \item \textbf{Frontend Template (\texttt{templates/index.html}):} The main HTML5 interface featuring a dual-pane layout: a syntax-highlighted code editor input area and a dynamic results panel for token breakdowns.
-    \item \textbf{Styling Asset (\texttt{static/styles.css}):} Custom CSS rules providing a modern responsive design, color-coded token badges, and distinct visual callouts for lexical errors caught during Panic Mode recovery.
-\end{itemize}
-
-\section{Test Cases and Results}
-The lexer was verified using unit tests and the mandatory reading benchmark:
-\begin{center}
-\texttt{printf("This is an example"); int a = 10;}
-\end{center}
-
-Scanning this input produces 10 tokens and 0 lexical errors. Table \ref{tab:mandatory_results} presents the token classification and coordinate breakdown generated by \texttt{io/writer.py}.
-
-\begin{table}[htbp]
-\centering
-\caption{Token breakdown for the mandatory test code.}
-\label{tab:mandatory_results}
-\small
-\begin{tabular}{c l l l c c}
-\toprule
-\textbf{No.} & \textbf{Internal Token} & \textbf{Category} & \textbf{Lexeme} & \textbf{Line} & \textbf{Column} \\
-\midrule
-1 & \texttt{PRINTF} & \texttt{keyword} & \texttt{'printf'} & 1 & 1 \\
-2 & \texttt{L\_PAREN} & \texttt{punctuation} & \texttt{'('} & 1 & 7 \\
-3 & \texttt{STRING\_LITERAL} & \texttt{constant} & \texttt{'"This is an example"'} & 1 & 8 \\
-4 & \texttt{R\_PAREN} & \texttt{punctuation} & \texttt{')'} & 1 & 28 \\
-5 & \texttt{SEMICOLON} & \texttt{punctuation} & \texttt{';'} & 1 & 29 \\
-6 & \texttt{INT} & \texttt{keyword} & \texttt{'int'} & 1 & 31 \\
-7 & \texttt{ID} & \texttt{identifier} & \texttt{'a'} & 1 & 35 \\
-8 & \texttt{ASSIGN} & \texttt{operator} & \texttt{'='} & 1 & 37 \\
-9 & \texttt{INTEGER} & \texttt{constant} & \texttt{'10'} & 1 & 39 \\
-10 & \texttt{SEMICOLON} & \texttt{punctuation} & \texttt{';'} & 1 & 41 \\
+\texttt{int x = 10;} & x & int & 4 & 1 & 1 & \texttt{0x1000}\\
+\texttt{x = 5;} & x & TBD & TBD & 1 & --- & TBD\\
+\texttt{int x = * 10;} & x & TBD & TBD & 1 & --- & TBD\\
+\texttt{bool activo = True;} & activo & bool & 1 & 1 & 1 & \texttt{0x1000}\\
+\texttt{real precio = 12.5;} & precio & real & 8 & 1 & 1 & \texttt{0x1000}\\
 \bottomrule
 \end{tabular}
+\caption{Symbol table contents after compiling each input independently.}
 \end{table}
 
-\noindent \textbf{Formatted Console Output:}
-\begin{verbatim}
-- ANALIZADOR LEXICO -
-keyword punctuation constant punctuation punctuation keyword identifier operator constant punctuation
-Total de tokens: 10
-ERRORES LEXICOS: Sin errores lexicos.
-\end{verbatim}
-
-\subsection{Extended Test Cases and Edge Cases Analysis}
-To evaluate system stability under non-ideal source inputs, a suite of 15 targeted test scenarios was executed. These edge cases evaluate specific DFA transition paths, boundary logic, case-sensitivity, operator disambiguation, and Panic Mode error recovery.
-
-Table \ref{tab:extended_tests} summarizes the operational performance across all test cases.
-
-\begin{table}[htbp]
+\subsection{Manual test cases}
+\begin{table}[H]
 \centering
-\caption{Evaluation of edge cases and Panic Mode recovery.}
-\label{tab:extended_tests}
 \small
-\begin{tabularx}{\textwidth}{c l l c X}
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}lXl@{}}
 \toprule
-\textbf{ID} & \textbf{Input Snippet} & \textbf{Category Output Stream} & \textbf{Tokens} & \textbf{Error Status} \\
+\textbf{Input} & \textbf{Observed behaviour} & \textbf{Result}\\
 \midrule
-1 & \texttt{print} & \texttt{keyword} & 1 & None \\
-2 & \texttt{Print} & \texttt{identifier} (Case-sensitive) & 1 & None \\
-3 & \texttt{printf} & \texttt{keyword} (\texttt{PRINTF} vs \texttt{PRINT}) & 1 & None \\
-4 & \texttt{printed} & \texttt{identifier} (Longest match) & 1 & None \\
-5 & \texttt{10-3} & \texttt{constant operator constant} & 3 & Unsigned int + \texttt{MINUS} \\
-6 & \texttt{"a" + "b"} & \texttt{constant operator constant} & 3 & String literals \\
-7 & \texttt{a <= b} & \texttt{identifier operator identifier} & 3 & Relational operator \\
-8 & \texttt{x == 3.14} & \texttt{identifier operator constant} & 3 & Real float recognition \\
-9 & \texttt{a = 1; \# comment} & \texttt{identifier operator constant punctuation} & 4 & Comment ignored \\
-10 & \texttt{@} & None & 0 & Error: Illegal char \texttt{'@'} \\
-11 & \texttt{"abc} & None & 0 & Error: Unclosed string \\
-12 & \texttt{3.} & None & 0 & Error: Malformed real \\
-13 & \texttt{1abc} & \texttt{constant identifier} & 2 & Split: \texttt{1} and \texttt{abc} \\
-14 & \texttt{!} & None & 0 & Error: Standalone \texttt{!} \\
-15 & \texttt{int a=3.; b=! @ \$} & 7 Tokens Emitted & 7 & 4 Panic Errors Logged \\
+int x = 10; & Parser and SDT succeed; \texttt{x}: int, size 4, \texttt{0x1000}. & Correct\\
+x = 5; & Parser succeeds; SDT reports undeclared variable. & Correct\\
+int x = "diez"; & Parser succeeds; SDT detects int/string incompatibility. & Correct\\
+int x = 10; int x = 20; & SDT detects redeclaration on line 2; keeps first entry. & Correct\\
+int x = 10; x = "hola"; & SDT detects type mismatch in the assignment on line 2. & Correct\\
+bool activo = True; & \texttt{bool} declaration accepted; size 1 byte. & Correct\\
+real precio = 12.5; & \texttt{real} declaration accepted; size 8 bytes. & Correct\\
 \bottomrule
 \end{tabularx}
+\caption{Exploratory manual tests in the web interface.}
 \end{table}
 
-\subsection{Detailed Analysis of Recovery and Disambiguation Cases}
-A closer examination of key edge cases provides deeper insight into the execution behavior of the lexer:
+\paragraph{Lexical and syntactic edge cases.}
+\texttt{\_variable123} is recognised as \texttt{ID} but, isolated, the parser rejects it because it does not complete a statement; \texttt{10.25} is a \texttt{REAL\_NUMBER} and also an invalid isolated statement; \texttt{10.} is reported by the Lexer as a malformed number; \texttt{"Hola mundo} as an unclosed string; \texttt{@} as an illegal character with line and column; \texttt{""} is a valid empty \texttt{STRING\_LITERAL}, rejected by the parser if isolated; and \texttt{int x = * 10;} yields an empty LL(1) cell, so the SDT is not executed.
 
-\begin{enumerate}
-    \item \textbf{Prefix vs. Exact Keyword Recognition (IDs 1, 3, 4):} The input \texttt{printed} contains the prefix \texttt{print}. The DFA remains in state $q_1$ while scanning letters, successfully applying the Maximal Munch rule to return a single \texttt{ID} token instead of splitting it into \texttt{PRINT} and \texttt{ID('ed')}.
-    \item \textbf{Case Sensitivity Verification (ID 2):} The input \texttt{Print} begins with an uppercase letter. Upon transition to state $q_1$ and subsequent query to the Symbol Table, the case-sensitive check fails to match \texttt{print}, resulting in correct classification as an \texttt{ID}.
-    \item \textbf{Numeric Disambiguation and Malformations (IDs 5, 8, 12, 13):}
-    \begin{itemize}
-        \item In \texttt{10-3}, state $q_2$ encounters the \texttt{-} character, emits \texttt{INTEGER('10')}, resets to $q_0$, and scans \texttt{-} as a \texttt{MINUS} operator.
-        \item In \texttt{3.}, transition $q_2 \to q_3$ occurs upon reading the decimal point. However, encountering EOF or a non-digit character in $q_3$ triggers a Panic Mode error (\textit{Malformed real number}) since $q_3$ is a non-accepting state.
-        \item In \texttt{1abc}, the lexer scans \texttt{1} in state $q_2$, encounters \texttt{a}, terminates the number, emits \texttt{INTEGER('1')}, and resumes from $q_0$ to scan \texttt{abc} as an \texttt{ID}.
-    \end{itemize}
-    \item \textbf{Multi-Error Recovery Stress Test (ID 15):} Processing \texttt{int a=3.; b=! @ \$} demonstrates the resilience of Panic Mode. The scanner emits 7 valid tokens (\texttt{INT}, \texttt{ID('a')}, \texttt{ASSIGN}, \texttt{SEMICOLON}, \texttt{ID('b')}, \texttt{ASSIGN}, \texttt{SEMICOLON}) while logging 4 distinct errors (\textit{Malformed real \texttt{3.}}, \textit{Invalid operator \texttt{!}}, \textit{Illegal character \texttt{@}}, and \textit{Illegal character \texttt{\$}}) without crashing or dropping valid tokens.
-\end{enumerate}
+\subsection{Regression after corrections}
+\begin{table}[H]
+\centering
+\small
+\begin{tabularx}{\textwidth}{@{}>{\ttfamily}lX@{}}
+\toprule
+\textbf{Input} & \textbf{Verification}\\
+\midrule
+int x = * 10; & \texttt{Parsing error...} and the line; no \texttt{SDT error...}; \texttt{x}: first appearance 1, declaration ---.\\
+x = 5; & \texttt{Parsing Success!} followed by \texttt{SDT error...} (undeclared); first appearance 1; declaration ---.\\
+int x = 10; & \texttt{Parsing Success!} and \texttt{SDT Verified!}; first appearance 1; declaration 1; int; 4; \texttt{0x1000}.\\
+\bottomrule
+\end{tabularx}
+\caption{Manual regression tests after the last commit.}
+\end{table}
 
-\section{Conclusion}
-This work successfully demonstrates the design and implementation of a hand-crafted Lexical Analyzer under package namespace \texttt{unam.fi.compilers.g5.02}. By avoiding automated scanner generators like FLEX or standard regular expression engines, the lexer enforces pure compilation theory, earning extra evaluation merit.
+The last commit also removed \texttt{SDT error...} from the syntax-error output, separated \texttt{first\_appearance\_line} from \texttt{declaration\_line}, added distinct columns in the interface, created three tests for the new metadata and updated two tests whose expectations matched the previous behaviour.
 
-The system handles 40 token types, maps them into 5 display classes, populates the Symbol Table, and isolates lexical errors via Panic Mode recovery without interrupting processing. Furthermore, the integration of a web interface via Flask enhances project accessibility for testing and demonstration. This robust scanner provides a solid foundation for integration with the upcoming $LL(1)$ predictive syntax parser.
+\subsection{Automated testing}
+The suite (unit and integration tests) is executed from the \texttt{develop/} folder with the virtual environment active:
+\begin{lstlisting}
+python -m unittest discover -s tests -t .. -v
+\end{lstlisting}
+The option \texttt{-t ..} sets the parent folder as package root, required because tests use relative imports (e.g.\ \texttt{from ..lexer}).
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{@{}lrr@{}}
+\toprule
+\textbf{Test group} & \textbf{Run} & \textbf{Passed}\\
+\midrule
+Parse tree (\texttt{test\_ast\_node.py}) & 5 & 5\\
+Compiler pipeline (\texttt{test\_compiler\_pipeline.py}) & 5 & 5\\
+Grammar (\texttt{test\_grammar.py}) & 4 & 4\\
+LL(1) parser (\texttt{test\_ll1\_parser.py}) & 11 & 11\\
+Main program / CLI (\texttt{test\_main.py}) & 8 & 8\\
+SDT analyzer (\texttt{test\_sdt\_analyzer.py}) & 25 & 25\\
+Declaration metadata (\texttt{test\_symbol\_declaration\_metadata.py}) & 3 & 3\\
+Symbol table (\texttt{test\_symtab\_sdt.py}) & 10 & 10\\
+Web pipeline (\texttt{test\_web\_pipeline.py}) & 6 & 6\\
+\midrule
+\textbf{Total} & \textbf{77} & \textbf{77}\\
+\bottomrule
+\end{tabular}
+\caption{Automated test results: 77 run, 77 passed, 0 failed, 0 errors.}
+\end{table}
+
+\subsection{Interface evidence}
+\begin{figure}[H]
+\centering
+\IfFileExists{figuresui_syntax_error.JPG}{\includegraphics[width=0.8\textwidth]{figuresui_syntax_error.JPG}}{\fbox{\parbox{0.7\textwidth}{\centering\vspace{2cm}Insert screenshot: \texttt{figures/ui\_syntax\_error.png}\vspace{2cm}}}}
+\caption{Syntax error for \texttt{int x = * 10;}: the SDT is not executed.}
+\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{figuresui_success.JPG}{\includegraphics[width=0.8\textwidth]{figuresui_success.JPG}}{\fbox{\parbox{0.7\textwidth}{\centering\vspace{2cm}Insert screenshot: \texttt{figures/ui\_success.png}\vspace{2cm}}}}
+\caption{Valid declaration \texttt{int x = 10;}: parser and SDT succeed.}
+\end{figure}
+
+\subsection{Version control and delivery status}
+The work was developed on the branch \texttt{feature/parser-sdt}. Pull Request \#7 compares it against \texttt{main}; GitHub reports no conflicts. The relevant commits are \texttt{a204d30} (LL(1) parser foundation), \texttt{61ed95c} (symbol table extended for semantic analysis), \texttt{a9f3642} (SDT pipeline and web UI integration) and \texttt{93f7ae1} (parser error reporting and declaration metadata fix).
+
+% ============================================================
+\section{Conclusions}
+\label{sec:conclusions}
+% ============================================================
+We extended the Lexer of Team 02 with a hand-written LL(1) parser and a semantic verifier based on SDT, using only the concepts seen in class. After eliminating left recursion and applying left factoring, the 24-rule grammar produced a conflict-free table, confirming that it is LL(1). The explicit stack and the trace turn every output into verifiable evidence of the algorithm.
+
+The separation of phases was the central design decision. A string can fail while recognising tokens, while forming grammatical structures (context-free properties, detected in the table), or while obeying declaration and type rules (context-sensitive properties, detected by the SDT over the tree). This explains why a syntax error prevents semantic analysis, while a syntactically valid input can still be rejected by the SDT. Likewise, separating \texttt{first\_appearance\_line} from \texttt{declaration\_line} was necessary to represent correctly the difference between a lexical finding and a semantic fact.
+
+The validation, with 77 automated tests passed and manual regression cases, shows that the three required outcomes behave as justified in Section~\ref{sec:results}.
+
+\paragraph{Limitations and future work.} The compiler performs lexical, syntactic and semantic analysis only. Natural continuations are the generation of intermediate code (three-address code) from the validated tree, support for implicit conversions or arrays (dimension attribute), more informative syntax error messages with expected-token sets, and a recovery strategy for the parser (e.g.\ synchronising on FOLLOW sets) so that several syntax errors can be reported in one run.
+
+% ============================================================
+\begin{thebibliography}{99}
+\bibitem{aho} A. V. Aho, M. S. Lam, R. Sethi, and J. D. Ullman, \emph{Compilers: Principles, Techniques, and Tools}, 2nd ed. Boston, MA, USA: Pearson/Addison-Wesley, 2006.
+\bibitem{cooper} K. D. Cooper and L. Torczon, \emph{Engineering a Compiler}, 3rd ed. Cambridge, MA, USA: Morgan Kaufmann, 2022.
+\bibitem{chomsky} N. Chomsky, ``On certain formal properties of grammars,'' \emph{Information and Control}, vol. 2, no. 2, pp. 137--167, 1959.
+\bibitem{lewis-stearns} P. M. Lewis II and R. E. Stearns, ``Syntax-directed transduction,'' \emph{J. ACM}, vol. 15, no. 3, pp. 465--488, 1968.
+\bibitem{rosenkrantz} D. J. Rosenkrantz and R. E. Stearns, ``Properties of deterministic top-down grammars,'' \emph{Information and Control}, vol. 17, no. 3, pp. 226--256, 1970.
+\bibitem{knuth-topdown} D. E. Knuth, ``Top-down syntax analysis,'' \emph{Acta Informatica}, vol. 1, no. 2, pp. 79--110, 1971.
+\bibitem{knuth-semantics} D. E. Knuth, ``Semantics of context-free languages,'' \emph{Math. Systems Theory}, vol. 2, no. 2, pp. 127--145, 1968.
+\bibitem{lexer-report} P. F. Cort\'es Guill\'en \emph{et al.}, ``Compilers: Lexer,'' Facultad de Ingenier\'ia, UNAM, Mexico City, Mexico, Group 5, Team 02, Project Rep. 1, Oct. 2026.
+\bibitem{assignment} Facultad de Ingenier\'ia, UNAM, ``Parser \& SDT: Syntax \& Semantic Analyzer,'' Compilers course, Group 5, assignment instructions, Nov. 2026.
+\end{thebibliography}
 
 \end{document}
