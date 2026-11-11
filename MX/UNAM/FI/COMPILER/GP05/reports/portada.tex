@@ -1,50 +1,28 @@
-%Cover page environment
-
-%---------------README----------------->
-%USE \include{Cover} %to import front page from main.tex
-%USE \usepackage{amsmath} in the main preamble
-%<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+% ------------------------------------------------------------
+%  TITLE PAGE
+% ------------------------------------------------------------
 \begin{titlepage}
-
-%--------------- LINE COMMAND----------------->
-\newcommand{\linea}{\rule{\linewidth}{0.7mm}}                  
-\center
-%<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-
+\centering
+% Uncomment if the logo files are available in the project:
+% \includegraphics[height=2.4cm]{figures/unam.png}\hspace{1cm}\includegraphics[height=2.4cm]{figures/fi.png}\\[0.6cm]
 %Add logos
 \includegraphics[width=0.8\textwidth]{logos.png}\\[0.02cm]
 \vfill
 
-%---------------TITLE----------------->
-\linea
-\vfill
-\textbf{\Large Compilers}\\[0.2cm]
-\textbf{\Large Lexer }\\[0.8cm]
-\linea \\
-\vfill
+\rule{\textwidth}{1.5pt}\\[0.5cm]
+{\Large\bfseries Compilers\\[0.3cm] Parser (LL(1)) and Syntax-Directed Translation (SDT)}\\[0.5cm]
+\rule{\textwidth}{1.5pt}\\[3cm]
 
-%<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+\textit{Students:}\\[0.2cm] \quad \textit{Team:} 02\\
+\textbf{Cort\'es Guill\'en Pavel Francisco} -- 118001568\\
+\textbf{Cojulum Ortega Mabel Ximena} -- 321101921\\
+\textbf{G\'omez Meza Jorge \'Angel} -- 118003225\\
+\textbf{Monroy Tapia Jesus Alejandro} -- 321045979\\
+\textbf{Villa Garcia Arely Guadalupe} -- 321000697\\[2cm]
 
-%Team
-    \vfill
-    \textit{Student: }
-    \textbf{Cortés Guillén Pavel Francisco} - 118001568\\
-    \textbf{Cojulum Ortega Mabel Ximena} - 321101921\\
-    \textbf{Goméz Meza Jorge Ángel} - 118003225\\
-    \textbf{Monroy Tapia Jesus Alejandro} - 321045979\\
-    \textbf{Villa Garcia Arely Guadalupe} - 321000697
-    \vfill
+\textit{Professor:} \textbf{Ren\'e Adri\'an D\'avila P\'erez}\\
+\textit{Group:} 5 
+\textit{Semester:} 2027-1\\[0.4cm]
 
-%Professor and Group
-    \textit{Professor:}
-    \textbf{René Adrián Dávila Pérez.}\\
-    \textit{Group: 5}\\
-    \textit{Semester: 2027-1}
-    \vfill
-
-%Date
-\textit{Deadline:}
-\text{October 6th, 2026}
-    \newpage
+\textit{Deadline:} November 10th, 2026
 \end{titlepage}
